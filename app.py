@@ -23,8 +23,9 @@ def save_results(listings: list[dict], new_count: int, next_scan_iso: str) -> No
         "total": len(listings),
         "new_count": new_count,
     }
-    with open(RESULTS_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+    with _scan_lock:
+        with open(RESULTS_FILE, "w") as f:
+            json.dump(data, f, indent=2)
 
 @app.route("/")
 def dashboard():
