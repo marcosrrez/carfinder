@@ -1,5 +1,4 @@
 # scheduler.py
-import json
 import threading
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
