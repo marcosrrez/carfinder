@@ -1,7 +1,5 @@
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from config import GMAIL_USER, GMAIL_APP_PASSWORD, ALERT_EMAIL, SEARCH
+import resend
+from config import RESEND_API_KEY, RESEND_FROM, ALERT_EMAIL, SEARCH
 
 TIER_LABELS = {"ideal": "⭐ IDEAL", "good": "✓ GOOD", "ok": "~ OK"}
 TIER_ORDER = ["ideal", "good", "ok"]
@@ -34,16 +32,14 @@ def send_alert(listings: list[dict]) -> None:
     if not listings:
         return
 
+    resend.api_key = RESEND_API_KEY
     body = build_email_body(listings)
     subject = f"[CarFinder] {len(listings)} new {SEARCH['model']} match{'es' if len(listings) != 1 else ''} found"
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = GMAIL_USER
-    msg["To"] = ALERT_EMAIL
-    msg.attach(MIMEText(body, "plain"))
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_USER, ALERT_EMAIL, msg.as_string())
+    resend.Emails.send({
+        "from": RESEND_FROM,
+        "to": ALERT_EMAIL,
+        "subject": subject,
+        "text": body,
+    })
     print(f"[email] Sent alert: {subject}")

@@ -10,8 +10,8 @@ def _require(key: str) -> str:
     return val
 
 MARKETCHECK_API_KEY = _require("MARKETCHECK_API_KEY")
-GMAIL_USER = _require("GMAIL_USER")
-GMAIL_APP_PASSWORD = _require("GMAIL_APP_PASSWORD")
+RESEND_API_KEY = _require("RESEND_API_KEY")
+RESEND_FROM = _require("RESEND_FROM")
 ALERT_EMAIL = _require("ALERT_EMAIL")
 
 SEARCH = {
