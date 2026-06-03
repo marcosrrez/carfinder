@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from scanner.marketcheck import fetch_marketcheck_listings
+from scanner.playwright_scraper import fetch_playwright_listings
 
 FAKE_RESPONSE = {
     "listings": [
@@ -43,3 +44,10 @@ def test_fetch_returns_normalized_listings():
     assert results[0]["source"] == "marketcheck"
     assert results[0]["url"] == "https://example.com/listing/mc_001"
     assert results[0]["title"] == "2016 Toyota Highlander XLE"
+
+def test_playwright_returns_list_on_failure():
+    # Scraper should never crash the scan — returns [] on any error
+    with patch("scanner.playwright_scraper.sync_playwright") as mock_pw:
+        mock_pw.side_effect = Exception("browser unavailable")
+        result = fetch_playwright_listings()
+    assert result == []
