@@ -26,4 +26,4 @@ SEARCH = {
 }
 
 IDEAL = {"max_price": 18500, "max_miles": 90000}
-GOOD  = {"max_price": 20600, "max_miles": 80000}
+GOOD  = {"max_price": 20600, "max_miles": 100000}
