@@ -3,10 +3,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MARKETCHECK_API_KEY = os.environ["MARKETCHECK_API_KEY"]
-GMAIL_USER = os.environ["GMAIL_USER"]
-GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
-ALERT_EMAIL = os.environ["ALERT_EMAIL"]
+def _require(key: str) -> str:
+    val = os.environ.get(key)
+    if not val:
+        raise ValueError(f"Missing required env var: {key}. Check your .env file.")
+    return val
+
+MARKETCHECK_API_KEY = _require("MARKETCHECK_API_KEY")
+GMAIL_USER = _require("GMAIL_USER")
+GMAIL_APP_PASSWORD = _require("GMAIL_APP_PASSWORD")
+ALERT_EMAIL = _require("ALERT_EMAIL")
 
 SEARCH = {
     "make": "Toyota",
