@@ -1,3 +1,4 @@
+# scanner/marketcheck.py
 import requests
 from config import MARKETCHECK_API_KEY, SEARCH
 
@@ -16,9 +17,13 @@ def fetch_marketcheck_listings() -> list[dict]:
         "rows": 100,
         "start": 0,
     }
-    resp = requests.get(BASE_URL, params=params, timeout=15)
-    resp.raise_for_status()
-    data = resp.json()
+    try:
+        resp = requests.get(BASE_URL, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as e:
+        print(f"[marketcheck] API error (skipping): {e}")
+        return []
 
     results = []
     for item in data.get("listings", []):
