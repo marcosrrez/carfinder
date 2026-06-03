@@ -26,9 +26,10 @@ def _scrape_craigslist() -> list[dict]:
         page = browser.new_page()
         for city, subdomain in markets:
             try:
+                query = f"{SEARCH['year']}+{SEARCH['make']}+{SEARCH['model']}"
                 url = (
                     f"https://{subdomain}.craigslist.org/search/cta"
-                    f"?query=2016+toyota+highlander"
+                    f"?query={query}"
                     f"&max_price={SEARCH['max_price']}"
                     f"&auto_miles_max={SEARCH['max_miles']}"
                     f"&sort=date"
