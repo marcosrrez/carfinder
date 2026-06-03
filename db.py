@@ -22,7 +22,16 @@ class ListingDB:
         self.conn.commit()
 
     def filter_new(self, listings: list[dict]) -> list[dict]:
-        new = [l for l in listings if self.is_new(l["id"])]
-        for l in new:
-            self.mark_seen(l["id"])
+        new = [listing for listing in listings if self.is_new(listing["id"])]
+        for listing in new:
+            self.mark_seen(listing["id"])
         return new
+
+    def close(self) -> None:
+        self.conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
