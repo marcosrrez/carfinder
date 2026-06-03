@@ -11,13 +11,15 @@ def test_ideal_boundary():
     assert score_listing(_listing(18500, 90000)) == "ideal"
 
 def test_good_price_over_ideal():
+    # price > IDEAL max but within GOOD, miles within GOOD
     assert score_listing(_listing(19000, 75000)) == "good"
-
-def test_good_miles_over_ideal():
-    assert score_listing(_listing(18000, 95000)) == "good"
 
 def test_good_boundary():
     assert score_listing(_listing(20600, 80000)) == "good"
+
+def test_ok_high_miles():
+    # price fine but miles > GOOD max — falls to ok
+    assert score_listing(_listing(18000, 95000)) == "ok"
 
 def test_ok():
     assert score_listing(_listing(16000, 120000)) == "ok"
