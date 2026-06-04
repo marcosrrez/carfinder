@@ -1,4 +1,5 @@
 # scheduler.py
+import os
 import threading
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -32,7 +33,8 @@ def start():
     scheduler.start()
     print(f"[scheduler] Scan scheduled every {interval_hours}h. Running first scan now...")
     threading.Thread(target=trigger_scan, daemon=True).start()
-    app.run(host="0.0.0.0", port=5001, debug=False)
+    port = int(os.environ.get("PORT", 5001))
+    app.run(host="0.0.0.0", port=port, debug=False)
 
 if __name__ == "__main__":
     start()
