@@ -15,7 +15,7 @@ SEARCH = {
 FAKE_RESPONSE = {
     "listings": [
         {
-            "id": "mc_001", "heading": "2016 Toyota Highlander XLE",
+            "id": "abc123", "heading": "2016 Toyota Highlander XLE",
             "price": 17995, "miles": 89200,
             "dealer": {"city": "Fayetteville", "state": "AR"},
             "dist": 28.3, "vdp_url": "https://example.com/1",
@@ -38,7 +38,7 @@ def test_fetch_returns_normalized_listing():
 
     assert len(results) == 1
     r = results[0]
-    assert r["id"] == "mc_mc_001"
+    assert r["id"] == "mc_abc123"
     assert r["search_id"] == "s1"
     assert r["price"] == 17995
     assert r["miles"] == 89200
