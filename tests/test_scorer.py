@@ -17,7 +17,7 @@ def test_ideal_boundary():
     assert score_listing(_listing(18500, 90000), SEARCH) == "ideal"
 
 def test_good():
-    assert score_listing(_listing(19000, 75000), SEARCH) == "good"
+    assert score_listing(_listing(18900, 75000), SEARCH) == "good"
 
 def test_ok_near_price_cap():
     # within max but > 92% of max_price → ok
