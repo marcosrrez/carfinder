@@ -1,65 +1,90 @@
 # scanner/marketcheck.py
 import requests
-from config import MARKETCHECK_API_KEY, SEARCH
+from config import MARKETCHECK_API_KEY
 
 BASE_URL = "https://mc-api.marketcheck.com/v2/search/car/active"
 
-# Strategic zip codes covering ~300mi radius from Siloam Springs AR (72761).
-# Free tier caps radius at 100mi, so we fan out from multiple centers.
 SEARCH_ZIPS = [
-    "72761",  # Siloam Springs AR (home base)
-    "74101",  # Tulsa OK (~90mi)
-    "64801",  # Joplin MO (~80mi)
-    "65801",  # Springfield MO (~120mi)
-    "72901",  # Fort Smith AR (~50mi)
-    "73101",  # Oklahoma City OK (~180mi)
-    "72201",  # Little Rock AR (~200mi)
-    "64108",  # Kansas City MO (~280mi)
+    "72761", "74101", "64801", "65801",
+    "72901", "73101", "72201", "64108",
 ]
 
-def _fetch_zip(zip_code: str) -> list[dict]:
+def _fetch_zip(search: dict, zip_code: str) -> list[dict]:
     params = {
         "api_key": MARKETCHECK_API_KEY,
-        "year": SEARCH["year"],
-        "make": SEARCH["make"],
-        "model": SEARCH["model"],
-        "price_max": SEARCH["max_price"],
-        "miles_max": SEARCH["max_miles"],
+        "year": search["year"],
+        "make": search["make"],
+        "model": search["model"],
+        "price_max": search["max_price"],
+        "miles_max": search["max_miles"],
         "zip": zip_code,
         "radius": 100,
         "rows": 100,
         "start": 0,
+        "fields": "id,heading,price,miles,dealer,dist,vdp_url,build,extra,dom,media,seller,vin,price_history",
     }
     try:
         resp = requests.get(BASE_URL, params=params, timeout=15)
         resp.raise_for_status()
-        data = resp.json()
+        return resp.json().get("listings", [])
     except requests.RequestException as e:
         print(f"[marketcheck] {zip_code} error (skipping): {e}")
         return []
 
-    results = []
-    for item in data.get("listings", []):
-        results.append({
-            "id": f"mc_{item['id']}",
-            "title": item.get("heading", ""),
-            "price": item.get("price", 0),
-            "miles": item.get("miles", 0),
-            "city": item.get("dealer", {}).get("city", ""),
-            "state": item.get("dealer", {}).get("state", ""),
-            "distance": item.get("dist", 0),
-            "source": "marketcheck",
-            "url": item.get("vdp_url", ""),
-        })
-    return results
+def _normalize(item: dict, search_id: str) -> dict:
+    build = item.get("build") or {}
+    extra = item.get("extra") or {}
+    media = item.get("media") or {}
+    seller = item.get("seller") or {}
+    ph = item.get("price_history") or []
 
-def fetch_marketcheck_listings() -> list[dict]:
+    drop_amount = None
+    drop_when = None
+    if ph and len(ph) >= 2:
+        latest = ph[-1].get("price", 0)
+        prev = ph[-2].get("price", 0)
+        if prev > latest:
+            drop_amount = prev - latest
+            drop_when = ph[-1].get("listing_date", "recently")
+
+    seller_type = "Dealer" if seller.get("type") == "D" else "Private"
+
+    return {
+        "id": f"mc_{item['id']}",
+        "search_id": search_id,
+        "title": item.get("heading", ""),
+        "price": item.get("price", 0),
+        "miles": item.get("miles", 0),
+        "city": (item.get("dealer") or {}).get("city", ""),
+        "state": (item.get("dealer") or {}).get("state", ""),
+        "distance": item.get("dist", 0),
+        "source": "marketcheck",
+        "url": item.get("vdp_url", ""),
+        "market": None,  # filled by compute_market_values
+        "drivetrain": build.get("drivetrain", ""),
+        "exterior": build.get("ext_color_generic", ""),
+        "interior": build.get("int_color_generic", ""),
+        "owners": extra.get("owner_count"),
+        "accidents": extra.get("accident_cnt"),
+        "days_listed": item.get("dom"),
+        "photos": len(media.get("photo_links") or []),
+        "seller_type": seller_type,
+        "seller_name": seller.get("seller_name", ""),
+        "seller_rating": seller.get("dealer_rating"),
+        "vin": item.get("vin", ""),
+        "drop_amount": drop_amount,
+        "drop_when": drop_when,
+        "is_new": 1,
+    }
+
+def fetch_marketcheck_listings(search: dict) -> list[dict]:
     seen_ids = set()
-    all_results = []
+    results = []
     for zip_code in SEARCH_ZIPS:
-        for listing in _fetch_zip(zip_code):
-            if listing["id"] not in seen_ids:
-                seen_ids.add(listing["id"])
-                all_results.append(listing)
-    print(f"[marketcheck] {len(all_results)} unique listings across {len(SEARCH_ZIPS)} zones")
-    return all_results
+        for item in _fetch_zip(search, zip_code):
+            normalized = _normalize(item, search["id"])
+            if normalized["id"] not in seen_ids:
+                seen_ids.add(normalized["id"])
+                results.append(normalized)
+    print(f"[marketcheck] {len(results)} unique listings for {search['make']} {search['model']}")
+    return results
