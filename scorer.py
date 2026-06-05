@@ -14,8 +14,8 @@ def score_listing(listing: dict, search: dict) -> str | None:
     if price <= ideal_price and miles <= ideal_miles:
         return "ideal"
 
-    near_price = price > max_price * 0.93
-    near_miles = miles > max_miles * 0.93
+    near_price = price > max_price * 0.92
+    near_miles = miles > max_miles * 0.92
     if near_price or near_miles:
         return "ok"
 
