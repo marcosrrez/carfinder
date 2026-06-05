@@ -1,42 +1,43 @@
 # app.py
-import json
 import os
 import threading
-from datetime import datetime
-from flask import Flask, render_template, jsonify
+from flask import Flask, g
+from flask_cors import CORS
+from models import Database
 
-app = Flask(__name__)
-_scan_lock = threading.Lock()
-RESULTS_FILE = "results.json"
+_db_lock = threading.Lock()
+_db_instance = None
 
-def load_results() -> dict:
-    if not os.path.exists(RESULTS_FILE):
-        return {"listings": [], "last_scan": None, "next_scan": None, "total": 0, "new_count": 0}
-    with open(RESULTS_FILE) as f:
-        return json.load(f)
+def get_db(db_path: str = None) -> Database:
+    global _db_instance
+    if _db_instance is None:
+        with _db_lock:
+            if _db_instance is None:
+                _db_instance = Database(db_path or os.environ.get("DB_PATH", "carfinder.db"))
+    return _db_instance
 
-def save_results(listings: list[dict], new_count: int, next_scan_iso: str) -> None:
-    data = {
-        "listings": listings,
-        "last_scan": datetime.now().isoformat(),
-        "next_scan": next_scan_iso,
-        "total": len(listings),
-        "new_count": new_count,
-    }
-    with _scan_lock:
-        with open(RESULTS_FILE, "w") as f:
-            json.dump(data, f, indent=2)
+def create_app(db_path: str = None) -> Flask:
+    app = Flask(__name__)
 
-@app.route("/")
-def dashboard():
-    return render_template("dashboard.html", **load_results())
+    CORS(app, resources={r"/api/*": {
+        "origins": [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            os.environ.get("FRONTEND_URL", ""),
+        ],
+        "allow_headers": ["Content-Type", "X-User-Id", "Authorization"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    }})
 
-@app.route("/api/results")
-def api_results():
-    return jsonify(load_results())
+    db = Database(db_path or os.environ.get("DB_PATH", "carfinder.db"))
 
-@app.route("/api/scan", methods=["POST"])
-def scan_now():
-    from scheduler import trigger_scan
-    threading.Thread(target=trigger_scan, daemon=True).start()
-    return jsonify({"status": "scan started"})
+    @app.before_request
+    def attach_db():
+        g.db = db
+
+    from api import register_blueprints
+    register_blueprints(app)
+
+    return app
+
+app = create_app()
