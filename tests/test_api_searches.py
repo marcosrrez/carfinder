@@ -20,7 +20,7 @@ def test_create_search(client):
         "max_miles": 130000, "ideal_miles": 90000,
         "zip": "72761", "city": "Siloam Springs, AR",
         "radius_miles": 300, "interval_hours": 2,
-        "alert_email": "test@test.com",
+        "alert_emails": "test@test.com",
     })
     assert resp.status_code == 201
     data = resp.get_json()
@@ -37,7 +37,7 @@ def test_list_searches(client):
         "make": "Toyota", "model": "Highlander", "trim": "", "year": 2016,
         "max_price": 20600, "ideal_price": 18500, "max_miles": 130000, "ideal_miles": 90000,
         "zip": "72761", "city": "Siloam Springs, AR", "radius_miles": 300, "interval_hours": 2,
-        "alert_email": "test@test.com",
+        "alert_emails": "test@test.com",
     })
     resp = client.get("/api/searches", headers=HEADERS)
     assert len(resp.get_json()) == 1
@@ -47,7 +47,7 @@ def test_update_search(client):
         "make": "Toyota", "model": "Highlander", "trim": "", "year": 2016,
         "max_price": 20600, "ideal_price": 18500, "max_miles": 130000, "ideal_miles": 90000,
         "zip": "72761", "city": "Siloam Springs, AR", "radius_miles": 300, "interval_hours": 2,
-        "alert_email": "test@test.com",
+        "alert_emails": "test@test.com",
     })
     sid = create.get_json()["id"]
     resp = client.put(f"/api/searches/{sid}", headers=HEADERS, json={"max_price": 22000})
@@ -59,7 +59,7 @@ def test_delete_search(client):
         "make": "Toyota", "model": "Highlander", "trim": "", "year": 2016,
         "max_price": 20600, "ideal_price": 18500, "max_miles": 130000, "ideal_miles": 90000,
         "zip": "72761", "city": "Siloam Springs, AR", "radius_miles": 300, "interval_hours": 2,
-        "alert_email": "test@test.com",
+        "alert_emails": "test@test.com",
     })
     sid = create.get_json()["id"]
     resp = client.delete(f"/api/searches/{sid}", headers=HEADERS)

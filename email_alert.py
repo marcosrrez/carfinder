@@ -37,14 +37,17 @@ def build_email_body(search: dict, listings: list[dict]) -> str:
 def send_alert(search: dict, listings: list[dict]) -> None:
     if not listings:
         return
+    recipients = [e.strip() for e in search.get("alert_emails", "").split(",") if e.strip()]
+    if not recipients:
+        return  # no valid email, skip
     resend.api_key = RESEND_API_KEY
     body = build_email_body(search, listings)
     n = len(listings)
     subject = f"[CarFinder] {n} new {search['model']} match{'es' if n!=1 else ''} found"
     resend.Emails.send({
         "from": RESEND_FROM,
-        "to": search["alert_email"],
+        "to": ", ".join(recipients),
         "subject": subject,
         "text": body,
     })
-    print(f"[email] Sent: {subject} → {search['alert_email']}")
+    print(f"[email] Sent: {subject} → {', '.join(recipients)}")

@@ -26,7 +26,7 @@ class Database:
                 city TEXT NOT NULL,
                 radius_miles INTEGER NOT NULL DEFAULT 300,
                 interval_hours INTEGER NOT NULL DEFAULT 2,
-                alert_email TEXT NOT NULL,
+                alert_emails TEXT NOT NULL DEFAULT '',
                 active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL
             );
@@ -78,6 +78,13 @@ class Database:
             );
         """)
         self.conn.commit()
+        # Migrate: alert_email → alert_emails for existing DBs
+        try:
+            self.conn.execute("ALTER TABLE searches ADD COLUMN alert_emails TEXT NOT NULL DEFAULT ''")
+            self.conn.execute("UPDATE searches SET alert_emails = alert_email WHERE alert_emails = ''")
+            self.conn.commit()
+        except Exception:
+            pass  # Column already exists
 
     def _row_to_dict(self, row) -> dict:
         return dict(row) if row else None
@@ -91,13 +98,13 @@ class Database:
             INSERT INTO searches
             (id, user_id, make, model, trim, year, max_price, ideal_price,
              max_miles, ideal_miles, zip, city, radius_miles, interval_hours,
-             alert_email, active, created_at)
+             alert_emails, active, created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
         """, (search_id, data["user_id"], data["make"], data["model"],
               data.get("trim", ""), data["year"], data["max_price"],
               data["ideal_price"], data["max_miles"], data["ideal_miles"],
               data["zip"], data["city"], data["radius_miles"],
-              data["interval_hours"], data["alert_email"], now))
+              data["interval_hours"], data["alert_emails"], now))
         self.conn.commit()
         return self.get_search(search_id)
 
@@ -123,7 +130,7 @@ class Database:
     def update_search(self, search_id: str, data: dict) -> dict:
         fields = ["make", "model", "trim", "year", "max_price", "ideal_price",
                   "max_miles", "ideal_miles", "zip", "city", "radius_miles",
-                  "interval_hours", "alert_email"]
+                  "interval_hours", "alert_emails"]
         sets = ", ".join(f"{f} = ?" for f in fields if f in data)
         vals = [data[f] for f in fields if f in data] + [search_id]
         if sets:

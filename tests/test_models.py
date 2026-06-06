@@ -20,7 +20,7 @@ def test_create_search(db):
         "max_miles": 130000, "ideal_miles": 90000,
         "zip": "72761", "city": "Siloam Springs, AR",
         "radius_miles": 300, "interval_hours": 2,
-        "alert_email": "test@example.com", "user_id": "user_1",
+        "alert_emails": "test@example.com", "user_id": "user_1",
     })
     assert s["id"] is not None
     assert s["make"] == "Toyota"
@@ -32,7 +32,7 @@ def test_get_search(db):
         "max_miles": 60000, "ideal_miles": 35000,
         "zip": "78745", "city": "Austin, TX",
         "radius_miles": 100, "interval_hours": 2,
-        "alert_email": "test@example.com", "user_id": "user_1",
+        "alert_emails": "test@example.com", "user_id": "user_1",
     })
     fetched = db.get_search(s["id"])
     assert fetched["model"] == "Odyssey"
@@ -41,11 +41,11 @@ def test_list_searches_by_user(db):
     db.create_search({"make": "Toyota", "model": "Highlander", "trim": "", "year": 2016,
         "max_price": 20600, "ideal_price": 18500, "max_miles": 130000, "ideal_miles": 90000,
         "zip": "72761", "city": "Siloam Springs, AR", "radius_miles": 300, "interval_hours": 2,
-        "alert_email": "a@b.com", "user_id": "user_1"})
+        "alert_emails": "a@b.com", "user_id": "user_1"})
     db.create_search({"make": "Honda", "model": "Odyssey", "trim": "", "year": 2020,
         "max_price": 34000, "ideal_price": 30000, "max_miles": 60000, "ideal_miles": 35000,
         "zip": "78745", "city": "Austin, TX", "radius_miles": 100, "interval_hours": 2,
-        "alert_email": "a@b.com", "user_id": "user_2"})
+        "alert_emails": "a@b.com", "user_id": "user_2"})
     user1 = db.list_searches("user_1")
     assert len(user1) == 1
     assert user1[0]["make"] == "Toyota"
@@ -54,7 +54,7 @@ def test_upsert_listing(db):
     s = db.create_search({"make": "Toyota", "model": "Highlander", "trim": "", "year": 2016,
         "max_price": 20600, "ideal_price": 18500, "max_miles": 130000, "ideal_miles": 90000,
         "zip": "72761", "city": "Siloam Springs, AR", "radius_miles": 300, "interval_hours": 2,
-        "alert_email": "a@b.com", "user_id": "user_1"})
+        "alert_emails": "a@b.com", "user_id": "user_1"})
     listing = {
         "id": "mc_abc123", "search_id": s["id"],
         "title": "2016 Toyota Highlander XLE", "price": 17995, "miles": 89200,

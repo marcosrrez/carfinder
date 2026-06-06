@@ -13,7 +13,7 @@ def client_with_search(tmp_path):
             "make": "Toyota", "model": "Highlander", "trim": "", "year": 2016,
             "max_price": 20600, "ideal_price": 18500, "max_miles": 130000, "ideal_miles": 90000,
             "zip": "72761", "city": "Siloam Springs, AR", "radius_miles": 300, "interval_hours": 2,
-            "alert_email": "test@test.com",
+            "alert_emails": "test@test.com",
         })
         search_id = r.get_json()["id"]
         yield c, search_id, headers

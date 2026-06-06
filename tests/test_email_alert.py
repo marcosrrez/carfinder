@@ -7,7 +7,7 @@ SEARCH = {
     "make": "Toyota", "model": "Highlander", "year": 2016,
     "max_price": 20600, "ideal_price": 18500,
     "max_miles": 130000, "ideal_miles": 90000,
-    "alert_email": "test@example.com",
+    "alert_emails": "test@example.com",
 }
 
 LISTINGS = [
