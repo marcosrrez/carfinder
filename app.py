@@ -19,12 +19,17 @@ def get_db(db_path: str = None) -> Database:
 def create_app(db_path: str = None) -> Flask:
     app = Flask(__name__)
 
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://carfinder-ui.vercel.app",
+    ]
+    frontend_url = os.environ.get("FRONTEND_URL", "")
+    if frontend_url:
+        allowed_origins.append(frontend_url)
+
     CORS(app, resources={r"/api/*": {
-        "origins": [
-            "http://localhost:5173",
-            "http://localhost:3000",
-            os.environ.get("FRONTEND_URL", ""),
-        ],
+        "origins": allowed_origins,
         "allow_headers": ["Content-Type", "X-User-Id", "Authorization"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     }})
