@@ -24,10 +24,17 @@ def create_search():
         return jsonify({"error": "Unauthorized"}), 401
     data = request.get_json()
     data["user_id"] = user_id
+    # normalize radius key — frontend may send either name
+    if "radius" in data and "radius_miles" not in data:
+        data["radius_miles"] = data["radius"]
+    data.setdefault("radius_miles", 100)
+    data.setdefault("interval_hours", 2)
+    data.setdefault("city", data.get("zip", ""))
+    data.setdefault("trim", "")
     required = ["make", "model", "year", "max_price", "ideal_price",
-                "max_miles", "ideal_miles", "zip", "city", "alert_email"]
+                "max_miles", "ideal_miles", "zip", "alert_email"]
     for field in required:
-        if field not in data:
+        if not data.get(field):
             return jsonify({"error": f"Missing field: {field}"}), 400
     search = g.db.create_search(data)
     return jsonify(search), 201
