@@ -1,6 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
 venv/
 .env
-results.json
-*.pyc
-__pycache__/
+*.db
+
+# Node
+ui/node_modules/
+ui/dist/
+
+# Misc
 .DS_Store
+results.json

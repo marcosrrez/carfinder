@@ -1,0 +1,74 @@
+<h2>CarFinder — System Architecture</h2>
+<p class="subtitle">How the app works end-to-end</p>
+
+<div class="mockup">
+  <div class="mockup-header">Data Flow</div>
+  <div class="mockup-body" style="padding:24px;font-family:monospace;font-size:13px;line-height:2">
+
+    <div style="display:flex;align-items:flex-start;gap:32px;flex-wrap:wrap">
+
+      <div style="flex:1;min-width:200px">
+        <div style="background:#1a1a2e;color:#e0e0ff;padding:12px 16px;border-radius:8px;margin-bottom:8px;font-weight:bold;letter-spacing:1px;font-size:11px">USER PROFILE</div>
+        <div style="background:#16213e;color:#aaa;padding:10px 14px;border-radius:6px;font-size:12px;line-height:1.8">
+          📧 marcosrrez@gmail.com<br>
+          🚗 2016 Toyota Highlander<br>
+          💰 Max $20,600<br>
+          📍 300mi of Siloam Springs AR<br>
+          🛣 Max 130k miles<br>
+          ⏱ Scan every 2 hours
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:40px;color:#666;font-size:22px">→</div>
+
+      <div style="flex:1;min-width:200px">
+        <div style="background:#0f3460;color:#e0e0ff;padding:12px 16px;border-radius:8px;margin-bottom:8px;font-weight:bold;letter-spacing:1px;font-size:11px">SCANNER ENGINE</div>
+        <div style="background:#16213e;color:#aaa;padding:10px 14px;border-radius:6px;font-size:12px;line-height:1.8">
+          🔌 Marketcheck API<br>
+          &nbsp;&nbsp;→ CarGurus dealers<br>
+          &nbsp;&nbsp;→ AutoTrader dealers<br>
+          &nbsp;&nbsp;→ Cars.com dealers<br>
+          🕷 Playwright scraper<br>
+          &nbsp;&nbsp;→ Facebook Marketplace<br>
+          &nbsp;&nbsp;→ Craigslist
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:40px;color:#666;font-size:22px">→</div>
+
+      <div style="flex:1;min-width:200px">
+        <div style="background:#533483;color:#e0e0ff;padding:12px 16px;border-radius:8px;margin-bottom:8px;font-weight:bold;letter-spacing:1px;font-size:11px">DEDUP + FILTER</div>
+        <div style="background:#16213e;color:#aaa;padding:10px 14px;border-radius:6px;font-size:12px;line-height:1.8">
+          ✅ Price filter<br>
+          ✅ Mileage filter<br>
+          ✅ Distance filter<br>
+          ✅ Already seen? Skip<br>
+          ✅ New listings only
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:40px;color:#666;font-size:22px">→</div>
+
+      <div style="flex:1;min-width:200px">
+        <div style="background:#1a472a;color:#e0e0ff;padding:12px 16px;border-radius:8px;margin-bottom:8px;font-weight:bold;letter-spacing:1px;font-size:11px">EMAIL ALERT</div>
+        <div style="background:#16213e;color:#aaa;padding:10px 14px;border-radius:6px;font-size:12px;line-height:1.8">
+          📬 Gmail SMTP<br>
+          🆕 New listings only<br>
+          📊 Score: ideal vs ok<br>
+          🔗 Direct listing links<br>
+          🕐 Every 2 hours
+        </div>
+      </div>
+
+    </div>
+
+    <div style="margin-top:24px;border-top:1px solid #333;padding-top:16px;color:#666;font-size:11px">
+      ⏰ Scheduler → runs scan → filters → sends email if new matches found → sleeps 2hrs → repeat
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top:20px;color:#888;font-size:13px">
+  Does this architecture look right? Any pieces missing or different from what you envisioned?
+</div>

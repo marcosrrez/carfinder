@@ -1,0 +1,4 @@
+{"type":"server-started","port":61514,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:61514","screen_dir":"/Users/marcos/carfinder/.superpowers/brainstorm/34965-1780457752/content","state_dir":"/Users/marcos/carfinder/.superpowers/brainstorm/34965-1780457752/state"}
+{"type":"screen-added","file":"/Users/marcos/carfinder/.superpowers/brainstorm/34965-1780457752/content/architecture.html"}
+{"type":"screen-added","file":"/Users/marcos/carfinder/.superpowers/brainstorm/34965-1780457752/content/dashboard-mockup.html"}
+{"type":"server-stopped","reason":"idle timeout"}

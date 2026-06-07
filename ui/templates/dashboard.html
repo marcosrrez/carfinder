@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CarFinder Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="topbar">
+    <span class="brand">🚗 CarFinder</span>
+    <span class="email">marcosrrez@gmail.com</span>
+  </nav>
+
+  <div class="container">
+    <div class="profile-card">
+      <div class="profile-header">
+        <span>Your Search</span>
+        <span class="badge active">● ACTIVE</span>
+      </div>
+      <div class="profile-grid">
+        <div><label>VEHICLE</label><strong>2016 Toyota Highlander</strong></div>
+        <div><label>MAX PRICE</label><strong>$20,600</strong></div>
+        <div><label>MAX MILES</label><strong>130,000</strong></div>
+        <div><label>RADIUS</label><strong>300 mi · Siloam Springs AR</strong></div>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-number blue">{{ total }}</div>
+        <div class="stat-label">Total Matches Found</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number green">{{ new_count }}</div>
+        <div class="stat-label">New Since Last Alert</div>
+      </div>
+    </div>
+
+    <div class="listings-section">
+      <div class="section-title">LATEST MATCHES</div>
+      {% for l in listings %}
+      <div class="listing-card {{ l.score }}">
+        <div class="listing-left">
+          <span class="tier-badge {{ l.score }}">
+            {% if l.score == 'ideal' %}⭐ IDEAL{% elif l.score == 'good' %}✓ GOOD{% else %}~ OK{% endif %}
+          </span>
+          <span class="listing-title">{{ l.title }}</span>
+          <div class="listing-meta">{{ "{:,}".format(l.miles) }} mi · {{ l.city }}, {{ l.state }} · {{ "%.0f"|format(l.distance) }} mi away · {{ l.source }}</div>
+        </div>
+        <div class="listing-right">
+          <div class="listing-price {{ l.score }}">${{ "{:,}".format(l.price) }}</div>
+          <a href="{{ l.url }}" target="_blank" class="view-link">View Listing →</a>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty-state">No matches yet — scan is running every 2 hours.</div>
+      {% endfor %}
+    </div>
+
+    <div class="footer-bar">
+      <span>
+        {% if last_scan %}Last scan: {{ last_scan[:16].replace('T', ' ') }}{% else %}No scan yet{% endif %}
+      </span>
+      <button class="scan-btn" onclick="scanNow()">Scan Now</button>
+    </div>
+  </div>
+
+  <script>
+    function scanNow() {
+      fetch('/api/scan', {method: 'POST'})
+        .then(() => { setTimeout(() => location.reload(), 8000); });
+    }
+  </script>
+</body>
+</html>
