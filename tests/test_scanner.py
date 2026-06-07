@@ -67,3 +67,37 @@ def test_playwright_returns_list_on_failure():
         mock_pw.side_effect = Exception("browser unavailable")
         result = fetch_playwright_listings(SEARCH)
     assert result == []
+
+def test_fetch_zip_passes_trim_and_drivetrain_when_set():
+    """Scanner passes trim list and drivetrain to Marketcheck when set."""
+    search = {
+        "id": "s1", "year": 2016, "make": "Toyota", "model": "Highlander",
+        "max_price": 25000, "max_miles": 130000,
+        "trims": "XLE,Limited", "drivetrain": "AWD",
+    }
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {"listings": []}
+    mock_resp.raise_for_status = MagicMock()
+    with patch("scanner.marketcheck.requests.get", return_value=mock_resp) as mock_get:
+        from scanner.marketcheck import _fetch_zip
+        _fetch_zip(search, "72761")
+        call_params = mock_get.call_args[1]["params"]
+        assert call_params.get("trim") == "XLE,Limited"
+        assert call_params.get("drivetrain") == "AWD"
+
+def test_fetch_zip_omits_trim_and_drivetrain_when_empty():
+    """Scanner does not send trim or drivetrain when they are empty/Any."""
+    search = {
+        "id": "s1", "year": 2016, "make": "Toyota", "model": "Highlander",
+        "max_price": 25000, "max_miles": 130000,
+        "trims": "", "drivetrain": "Any",
+    }
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {"listings": []}
+    mock_resp.raise_for_status = MagicMock()
+    with patch("scanner.marketcheck.requests.get", return_value=mock_resp) as mock_get:
+        from scanner.marketcheck import _fetch_zip
+        _fetch_zip(search, "72761")
+        call_params = mock_get.call_args[1]["params"]
+        assert "trim" not in call_params
+        assert "drivetrain" not in call_params

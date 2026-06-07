@@ -23,6 +23,16 @@ def _fetch_zip(search: dict, zip_code: str) -> list[dict]:
         "start": 0,
         "fields": "id,heading,price,miles,dealer,dist,vdp_url,build,extra,dom,media,seller,vin,price_history",
     }
+    # Trim filter — comma-separated, Marketcheck matches any (OR logic)
+    trims_str = search.get("trims", "")
+    if trims_str:
+        params["trim"] = trims_str
+
+    # Drivetrain filter — AND on top of trim selection
+    drivetrain = search.get("drivetrain", "Any")
+    if drivetrain and drivetrain != "Any":
+        params["drivetrain"] = drivetrain
+
     try:
         resp = requests.get(BASE_URL, params=params, timeout=15)
         resp.raise_for_status()
