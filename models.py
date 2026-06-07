@@ -105,6 +105,16 @@ class Database:
             self.conn.commit()
         except Exception:
             pass
+        # Migrate: add last_scanned_at and last_alerted_at columns
+        for col_def in [
+            "last_scanned_at TEXT",
+            "last_alerted_at TEXT",
+        ]:
+            try:
+                self.conn.execute(f"ALTER TABLE searches ADD COLUMN {col_def}")
+                self.conn.commit()
+            except Exception:
+                pass
 
     def _row_to_dict(self, row) -> dict:
         return dict(row) if row else None
@@ -291,6 +301,13 @@ class Database:
             "SELECT listing_id FROM hidden_listings WHERE user_id=?", (user_id,)
         ).fetchall()
         return [r["listing_id"] for r in rows]
+
+    def update_scan_timestamps(self, search_id: str, last_scanned_at: str = None, last_alerted_at: str = None) -> None:
+        if last_scanned_at:
+            self.conn.execute("UPDATE searches SET last_scanned_at = ? WHERE id = ?", (last_scanned_at, search_id))
+        if last_alerted_at:
+            self.conn.execute("UPDATE searches SET last_alerted_at = ? WHERE id = ?", (last_alerted_at, search_id))
+        self.conn.commit()
 
     def close(self):
         self.conn.close()
