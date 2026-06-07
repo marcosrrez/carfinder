@@ -78,6 +78,16 @@ class Database:
                 hidden_at TEXT NOT NULL,
                 PRIMARY KEY (user_id, listing_id)
             );
+
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                p256dh TEXT NOT NULL,
+                auth TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(user_id, endpoint)
+            );
         """)
         self.conn.commit()
         # Migrate: alert_email → alert_emails for existing DBs
@@ -203,13 +213,26 @@ class Database:
 
     # ── Listings ──────────────────────────────────────────────────────────
 
-    def upsert_listing(self, listing: dict) -> None:
+    def upsert_listing(self, listing: dict) -> dict:
+        """Upsert listing. Returns {"price_dropped": bool, "drop_amount": int, "saved_by": list}"""
         now = datetime.now().isoformat()
+        result = {"price_dropped": False, "drop_amount": 0, "saved_by": []}
         existing = self.conn.execute(
-            "SELECT id FROM listings WHERE id = ? AND search_id = ?",
+            "SELECT id, price FROM listings WHERE id = ? AND search_id = ?",
             (listing["id"], listing["search_id"])
         ).fetchone()
         if existing:
+            old_price = existing["price"] or 0
+            new_price = listing.get("price") or 0
+            if new_price > 0 and old_price > new_price:
+                result["price_dropped"] = True
+                result["drop_amount"] = old_price - new_price
+                # Find users who saved this listing
+                rows = self.conn.execute(
+                    "SELECT user_id FROM saved_listings WHERE listing_id = ?",
+                    (listing["id"],)
+                ).fetchall()
+                result["saved_by"] = [r["user_id"] for r in rows]
             self.conn.execute("""
                 UPDATE listings SET price=?, miles=?, days_listed=?, is_new=?,
                 drop_amount=?, drop_when=?, last_seen=?
@@ -238,6 +261,7 @@ class Database:
                   listing.get("drop_amount"), listing.get("drop_when"),
                   listing.get("is_new", 1), now, now))
         self.conn.commit()
+        return result
 
     def get_listings(self, search_id: str) -> list[dict]:
         rows = self.conn.execute(
@@ -317,6 +341,29 @@ class Database:
         if last_listing_count is not None:
             self.conn.execute("UPDATE searches SET last_listing_count = ? WHERE id = ?", (last_listing_count, search_id))
         self.conn.commit()
+
+    # ── Push Subscriptions ────────────────────────────────────────────────
+
+    def save_push_subscription(self, user_id: str, endpoint: str, p256dh: str, auth: str) -> None:
+        import uuid
+        self.conn.execute("""
+            INSERT OR REPLACE INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (str(uuid.uuid4())[:8], user_id, endpoint, p256dh, auth, datetime.now().isoformat()))
+        self.conn.commit()
+
+    def delete_push_subscription(self, user_id: str, endpoint: str) -> None:
+        self.conn.execute(
+            "DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?",
+            (user_id, endpoint)
+        )
+        self.conn.commit()
+
+    def get_push_subscriptions(self, user_id: str) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM push_subscriptions WHERE user_id = ?", (user_id,)
+        ).fetchall()
+        return [self._row_to_dict(r) for r in rows]
 
     def close(self):
         self.conn.close()

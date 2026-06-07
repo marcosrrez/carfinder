@@ -257,6 +257,144 @@ def send_quiet_alert(search: dict, days_quiet: int) -> None:
     print(f"[email] Sent quiet alert: {subject} → {', '.join(recipients)}")
 
 
+def send_price_drop_alert(search: dict, listing: dict, drop_amount: int) -> None:
+    """Send a price drop alert for a saved listing."""
+    emails = [e.strip() for e in (search.get("alert_emails") or "").split(",") if e.strip()]
+    if not emails:
+        return
+    title = listing.get("title", f"{search['year']} {search['make']} {search['model']}")
+    old_price = (listing.get("price") or 0) + drop_amount
+    new_price = listing.get("price") or 0
+    miles = listing.get("miles", 0)
+    city = listing.get("city", "")
+    url = listing.get("url", "#")
+
+    subject = f"💸 Price drop: {title} dropped ${drop_amount:,}"
+
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#0b0c0e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<div style="max-width:600px;margin:0 auto;padding:32px 24px;">
+  <div style="font-size:20px;font-weight:600;color:#ECEDEF;letter-spacing:-0.025em;margin-bottom:24px;">
+    💸 Price dropped on a saved listing
+  </div>
+  <div style="background:#131416;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px 24px;">
+    <div style="font-size:16px;font-weight:600;color:#ECEDEF;margin-bottom:8px;">{title}</div>
+    <div style="font-size:13px;color:#8a8d94;margin-bottom:16px;">{miles:,} miles · {city}</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <span style="font-size:15px;color:#8a8d94;text-decoration:line-through;">${old_price:,}</span>
+      <span style="font-size:22px;font-weight:700;color:#ECEDEF;">${new_price:,}</span>
+      <span style="font-size:13px;font-weight:600;color:#4ade80;background:rgba(74,222,128,0.1);border-radius:99px;padding:3px 10px;">↓ ${drop_amount:,}</span>
+    </div>
+    <a href="{url}" style="display:block;text-align:center;background:#6366f1;color:#fff;text-decoration:none;border-radius:10px;padding:12px;font-weight:600;font-size:14px;">View listing →</a>
+  </div>
+  <div style="font-size:11px;color:#62656d;text-align:center;margin-top:20px;">CarFinder · alerts@carfinder.app</div>
+</div>
+</body></html>"""
+
+    import os
+    api_key = os.environ.get("RESEND_API_KEY", "") or RESEND_API_KEY
+    if not api_key:
+        print(f"[email] RESEND_API_KEY not set — skipping price drop alert")
+        return
+    try:
+        resend.api_key = api_key
+        resend.Emails.send({
+            "from": RESEND_FROM,
+            "to": emails,
+            "subject": subject,
+            "html": html,
+        })
+        print(f"[email] Price drop alert sent for {title}")
+    except Exception as e:
+        print(f"[email] Failed to send price drop alert: {e}")
+
+
+def send_digest(user_id: str, summaries: list[dict]) -> None:
+    """Send weekly digest email covering all active searches for a user.
+
+    summaries: list of {
+        search: dict,
+        total_listings: int,
+        new_this_week: int,
+        best_listing: dict | None,
+        best_delta: int | None,  # price - market, negative = below market
+        days_quiet: int,
+    }
+    """
+    emails = []
+    for s in summaries:
+        for e in (s["search"].get("alert_emails") or "").split(","):
+            if e.strip():
+                emails.append(e.strip())
+    if not emails:
+        return
+
+    total_new = sum(s["new_this_week"] for s in summaries)
+    subject = f"🔍 Weekly update: {total_new} new match{'es' if total_new != 1 else ''} across your hunts"
+
+    rows_html = ""
+    for s in summaries:
+        search = s["search"]
+        label = f"{search['year']} {search['make']} {search['model']}"
+        if s["days_quiet"] >= 7:
+            status = f'<span style="color:#f87171">Quiet for {s["days_quiet"]} days</span>'
+        else:
+            status = f'<span style="color:#4ade80">{s["new_this_week"]} new this week</span>'
+
+        best_html = ""
+        if s["best_listing"]:
+            bl = s["best_listing"]
+            delta_str = ""
+            if s["best_delta"] is not None and s["best_delta"] < -300:
+                delta_str = f' · <span style="color:#4ade80">${abs(s["best_delta"]):,} below market</span>'
+            best_html = f"""
+            <div style="margin-top:8px;font-size:12.5px;color:#8a8d94;">
+              Best: <strong style="color:#ECEDEF">${bl.get("price",0):,}</strong> · {bl.get("miles",0):,} mi{delta_str}
+              · <a href="{bl.get("url","#")}" style="color:#6366f1;">View →</a>
+            </div>"""
+
+        rows_html += f"""
+        <tr><td style="padding:14px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+          <div style="font-size:14px;font-weight:600;color:#ECEDEF;">{label}</div>
+          <div style="font-size:12.5px;color:#8a8d94;margin-top:3px;">{s["total_listings"]} total · {status}</div>
+          {best_html}
+        </td></tr>"""
+
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#0b0c0e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<div style="max-width:600px;margin:0 auto;padding:32px 24px;">
+  <div style="font-size:20px;font-weight:600;color:#ECEDEF;letter-spacing:-0.025em;margin-bottom:6px;">Your weekly hunt update</div>
+  <div style="font-size:13px;color:#8a8d94;margin-bottom:24px;">{total_new} new match{'es' if total_new != 1 else ''} found across {len(summaries)} active search{'es' if len(summaries) != 1 else ''} this week.</div>
+  <div style="background:#131416;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:4px 20px;">
+    <table style="width:100%;border-collapse:collapse;"><tbody>{rows_html}</tbody></table>
+  </div>
+  <div style="text-align:center;margin-top:24px;">
+    <a href="#" style="display:inline-block;background:#6366f1;color:#fff;text-decoration:none;border-radius:10px;padding:12px 28px;font-weight:600;font-size:14px;">Open dashboard →</a>
+  </div>
+  <div style="font-size:11px;color:#62656d;text-align:center;margin-top:20px;">CarFinder · Weekly digest every Sunday</div>
+</div>
+</body></html>"""
+
+    import os
+    api_key = os.environ.get("RESEND_API_KEY", "") or RESEND_API_KEY
+    if not api_key:
+        print("[email] RESEND_API_KEY not set — skipping digest")
+        return
+    try:
+        resend.api_key = api_key
+        resend.Emails.send({
+            "from": RESEND_FROM,
+            "to": list(set(emails)),
+            "subject": subject,
+            "html": html,
+        })
+        print(f"[email] Weekly digest sent to {emails}")
+    except Exception as e:
+        print(f"[email] Digest send failed: {e}")
+
+
 def send_alert(search: dict, listings: list[dict]) -> None:
     if not listings:
         return

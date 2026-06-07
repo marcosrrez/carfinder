@@ -32,9 +32,30 @@ def trigger_scan_for_search(search: dict) -> None:
                 (listing["id"], search["id"])
             ).fetchone()
             listing["is_new"] = 0 if existing else 1
-            db.upsert_listing(listing)
+            drop_info = db.upsert_listing(listing)
+            if drop_info["price_dropped"] and drop_info["saved_by"]:
+                from email_alert import send_price_drop_alert
+                print(f"[scanner] Price drop on saved listing {listing['id']} — ${drop_info['drop_amount']:,}")
+                send_price_drop_alert(search, listing, drop_info["drop_amount"])
         count_new = sum(1 for l in listings if l.get("is_new"))
         print(f"[scanner] {len(listings)} total, {count_new} new for search {search['id']}")
+        new_listings = [l for l in listings if l.get("is_new")]
+        # Send push notifications for new listings
+        if new_listings:
+            from push_notify import send_push_to_user
+            user_id = search.get("user_id")
+            if user_id:
+                best = min(new_listings, key=lambda l: l.get("price", 999999))
+                count = len(new_listings)
+                title = f"{count} new {search['make']} {search['model']} match{'es' if count > 1 else ''}"
+                price = f"${best['price']:,}"
+                miles = f"{best['miles']:,} mi"
+                body = f"Best: {price} · {miles}"
+                market = best.get("market")
+                if market and best["price"] < market:
+                    delta = market - best["price"]
+                    body += f" — ${delta:,} below market"
+                send_push_to_user(db, user_id, title, body)
         now = datetime.now().isoformat()
         db.update_scan_timestamps(search["id"], last_scanned_at=now)
         db.update_scan_timestamps(search["id"], last_listing_count=len(listings))
@@ -217,6 +238,63 @@ def _run_quiet_alerts() -> None:
             print(f"[quiet] Failed: {e}")
 
 
+def _run_weekly_digest() -> None:
+    """Send weekly summary email to all users with active searches."""
+    from email_alert import send_digest
+    from datetime import timedelta
+    db = get_db()
+    searches = db.list_all_active_searches()
+    now = datetime.now()
+    one_week_ago = (now - timedelta(days=7)).isoformat()
+
+    # Group searches by user_id
+    by_user: dict[str, list] = {}
+    for s in searches:
+        uid = s.get("user_id", "")
+        if uid:
+            by_user.setdefault(uid, []).append(s)
+
+    for user_id, user_searches in by_user.items():
+        summaries = []
+        for search in user_searches:
+            listings = db.get_listings(search["id"])
+            new_this_week = [l for l in listings if l.get("first_seen", "") >= one_week_ago]
+
+            # Best listing by price delta (most below market)
+            with_market = [l for l in listings if l.get("market") and l.get("price")]
+            best = None
+            best_delta = None
+            if with_market:
+                best = min(with_market, key=lambda l: l["price"] - l["market"])
+                best_delta = best["price"] - best["market"]
+
+            # Days quiet
+            latest_str = max((l.get("first_seen", "") for l in listings), default=None)
+            days_quiet = 0
+            if latest_str:
+                try:
+                    days_quiet = (now - datetime.fromisoformat(latest_str)).days
+                except Exception:
+                    pass
+            else:
+                days_quiet = 999
+
+            summaries.append({
+                "search": search,
+                "total_listings": len(listings),
+                "new_this_week": len(new_this_week),
+                "best_listing": best,
+                "best_delta": best_delta,
+                "days_quiet": days_quiet,
+            })
+
+        print(f"[digest] Sending weekly digest to user {user_id} ({len(summaries)} searches)")
+        try:
+            send_digest(user_id, summaries)
+        except Exception as e:
+            print(f"[digest] Failed for user {user_id}: {e}")
+
+
 def start():
     flask_app = create_app()
     scheduler = BackgroundScheduler()
@@ -229,6 +307,9 @@ def start():
 
     # Send weekly quiet-search nudge emails once daily
     scheduler.add_job(_run_quiet_alerts, "interval", hours=24, id="quiet_alerts")
+
+    # Weekly digest every Sunday at 9am
+    scheduler.add_job(_run_weekly_digest, "cron", day_of_week="sun", hour=9, id="weekly_digest")
 
     scheduler.start()
 
