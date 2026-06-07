@@ -111,21 +111,41 @@ class Database:
 
     # ── Searches ──────────────────────────────────────────────────────────
 
+    def _has_column(self, table: str, col: str) -> bool:
+        rows = self.conn.execute(f"PRAGMA table_info({table})").fetchall()
+        return any(r["name"] == col for r in rows)
+
     def create_search(self, data: dict) -> dict:
         search_id = str(uuid.uuid4())[:8]
         now = datetime.now().isoformat()
-        self.conn.execute("""
-            INSERT INTO searches
-            (id, user_id, make, model, trim, year, max_price, ideal_price,
-             max_miles, ideal_miles, zip, city, radius_miles, interval_hours,
-             alert_emails, trims, drivetrain, active, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
-        """, (search_id, data["user_id"], data["make"], data["model"],
-              data.get("trim", ""), data["year"], data["max_price"],
-              data["ideal_price"], data["max_miles"], data["ideal_miles"],
-              data["zip"], data["city"], data["radius_miles"],
-              data["interval_hours"], data["alert_emails"],
-              data.get("trims", ""), data.get("drivetrain", "Any"), now))
+        alert_emails_val = data.get("alert_emails", "")
+        # Include legacy alert_email column only if it exists (older Railway DBs)
+        if self._has_column("searches", "alert_email"):
+            self.conn.execute("""
+                INSERT INTO searches
+                (id, user_id, make, model, trim, year, max_price, ideal_price,
+                 max_miles, ideal_miles, zip, city, radius_miles, interval_hours,
+                 alert_email, alert_emails, trims, drivetrain, active, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
+            """, (search_id, data["user_id"], data["make"], data["model"],
+                  data.get("trim", ""), data["year"], data["max_price"],
+                  data["ideal_price"], data["max_miles"], data["ideal_miles"],
+                  data["zip"], data["city"], data["radius_miles"],
+                  data["interval_hours"], alert_emails_val, alert_emails_val,
+                  data.get("trims", ""), data.get("drivetrain", "Any"), now))
+        else:
+            self.conn.execute("""
+                INSERT INTO searches
+                (id, user_id, make, model, trim, year, max_price, ideal_price,
+                 max_miles, ideal_miles, zip, city, radius_miles, interval_hours,
+                 alert_emails, trims, drivetrain, active, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
+            """, (search_id, data["user_id"], data["make"], data["model"],
+                  data.get("trim", ""), data["year"], data["max_price"],
+                  data["ideal_price"], data["max_miles"], data["ideal_miles"],
+                  data["zip"], data["city"], data["radius_miles"],
+                  data["interval_hours"], alert_emails_val,
+                  data.get("trims", ""), data.get("drivetrain", "Any"), now))
         self.conn.commit()
         return self.get_search(search_id)
 

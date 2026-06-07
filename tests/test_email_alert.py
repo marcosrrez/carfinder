@@ -1,7 +1,7 @@
 # tests/test_email_alert.py
 import pytest
 from unittest.mock import patch, MagicMock
-from email_alert import build_email_body, send_alert
+from email_alert import build_email_html, build_email_text, send_alert
 
 SEARCH = {
     "make": "Toyota", "model": "Highlander", "year": 2016,
@@ -14,31 +14,39 @@ LISTINGS = [
     {"title": "2016 Toyota Highlander XLE", "price": 17995, "miles": 89200,
      "city": "Fayetteville", "state": "AR", "distance": 28.3,
      "source": "marketcheck", "url": "https://example.com/1",
-     "tier": "ideal", "deal": {"key": "great", "label": "Great deal", "delta": -1400},
-     "market": 19395},
+     "tier": "ideal", "drivetrain": "AWD", "exterior": "Silver",
+     "days_listed": 3, "seller_type": "Dealer",
+     "drop_amount": 1400, "drop_when": "2 days ago"},
     {"title": "2016 Toyota Highlander LE", "price": 19500, "miles": 74500,
      "city": "Tulsa", "state": "OK", "distance": 87.1,
      "source": "marketcheck", "url": "https://example.com/2",
-     "tier": "good", "deal": {"key": "fair", "label": "Fair price", "delta": 200},
-     "market": 19300},
+     "tier": "good", "drivetrain": "FWD", "exterior": "White",
+     "days_listed": 12, "seller_type": "Dealer",
+     "drop_amount": None, "drop_when": None},
 ]
 
-def test_build_email_body_contains_titles():
-    body = build_email_body(SEARCH, LISTINGS)
-    assert "2016 Toyota Highlander XLE" in body
-    assert "2016 Toyota Highlander LE" in body
+def test_build_email_html_contains_titles():
+    html = build_email_html(SEARCH, LISTINGS)
+    assert "2016 Toyota Highlander XLE" in html
+    assert "2016 Toyota Highlander LE" in html
 
-def test_build_email_body_groups_by_tier():
-    body = build_email_body(SEARCH, LISTINGS)
-    assert body.index("IDEAL") < body.index("GOOD")
+def test_build_email_html_groups_by_tier():
+    html = build_email_html(SEARCH, LISTINGS)
+    assert html.index("Ideal") < html.index("Good")
 
-def test_build_email_body_contains_price():
-    body = build_email_body(SEARCH, LISTINGS)
-    assert "$17,995" in body
+def test_build_email_html_contains_price():
+    html = build_email_html(SEARCH, LISTINGS)
+    assert "$17,995" in html
 
-def test_build_email_body_contains_deal_signal():
-    body = build_email_body(SEARCH, LISTINGS)
-    assert "Great deal" in body
+def test_build_email_html_contains_price_drop():
+    html = build_email_html(SEARCH, LISTINGS)
+    assert "Price dropped" in html
+    assert "$1,400" in html
+
+def test_build_email_text_contains_titles():
+    text = build_email_text(SEARCH, LISTINGS)
+    assert "2016 Toyota Highlander XLE" in text
+    assert "2016 Toyota Highlander LE" in text
 
 def test_send_alert_skips_empty():
     with patch("email_alert.resend.Emails.send") as mock_send:
