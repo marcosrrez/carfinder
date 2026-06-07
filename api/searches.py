@@ -33,8 +33,9 @@ def create_search():
     data.setdefault("trim", "")
     data.setdefault("trims", "")
     data.setdefault("drivetrain", "Any")
+    data.setdefault("alert_emails", "")
     required = ["make", "model", "year", "max_price", "ideal_price",
-                "max_miles", "ideal_miles", "zip", "alert_emails"]
+                "max_miles", "ideal_miles", "zip"]
     for field in required:
         if not data.get(field):
             return jsonify({"error": f"Missing field: {field}"}), 400
