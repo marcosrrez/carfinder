@@ -40,6 +40,11 @@ def create_search():
         if not data.get(field):
             return jsonify({"error": f"Missing field: {field}"}), 400
     search = g.db.create_search(data)
+    # Kick off the first scan immediately in a background thread so the user
+    # gets real results within ~60-90 seconds instead of waiting up to 2 hours.
+    import threading
+    from scheduler import trigger_scan_for_search
+    threading.Thread(target=trigger_scan_for_search, args=(search,), daemon=True).start()
     return jsonify(search), 201
 
 @searches_bp.route("/api/searches/<search_id>", methods=["GET"])
