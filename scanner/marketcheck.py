@@ -60,6 +60,40 @@ def _fetch_raw(search: dict, zip_code: str) -> list[dict]:
         return []
 
 
+def fetch_marketcheck_count(search: dict) -> int:
+    """Lightweight count-only check. Returns -1 on error."""
+    zip_code = str(search.get("zip", "")).strip()
+    if not zip_code:
+        return -1
+    radius = search.get("radius_miles") or search.get("radius") or 100
+    params = {
+        "api_key": MARKETCHECK_API_KEY,
+        "year": search["year"],
+        "make": search["make"],
+        "model": search["model"],
+        "price_max": search["max_price"],
+        "miles_max": search["max_miles"],
+        "zip": zip_code,
+        "radius": radius,
+    }
+    trims_str = search.get("trims", "")
+    if trims_str:
+        params["trim"] = trims_str
+    drivetrain = search.get("drivetrain", "Any")
+    if drivetrain and drivetrain != "Any":
+        params["drivetrain"] = drivetrain
+    try:
+        resp = requests.get(
+            "https://mc-api.marketcheck.com/v2/count/car/active",
+            params=params, timeout=10
+        )
+        resp.raise_for_status()
+        return int(resp.json().get("count", 0))
+    except Exception as e:
+        print(f"[marketcheck] count check error: {e}")
+        return -1
+
+
 def _normalize(item: dict, search_id: str) -> dict:
     build = item.get("build") or {}
     extra = item.get("extra") or {}

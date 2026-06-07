@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from app import create_app, get_db
 from scanner import run_scan
+from scanner.marketcheck import fetch_marketcheck_count
 from email_alert import send_alert
 
 _status = {"scanning": False, "last_scan": None, "next_scan": None}
@@ -36,6 +37,7 @@ def trigger_scan_for_search(search: dict) -> None:
         print(f"[scanner] {len(listings)} total, {count_new} new for search {search['id']}")
         now = datetime.now().isoformat()
         db.update_scan_timestamps(search["id"], last_scanned_at=now)
+        db.update_scan_timestamps(search["id"], last_listing_count=len(listings))
     except Exception as e:
         print(f"[scanner] Error scanning {search['id']}: {e}")
     finally:
@@ -89,7 +91,7 @@ def _scan_interval_minutes(search: dict, db) -> int:
         return 20   # actively finding things
     if days_since_match < 30:
         return 120  # quieter but still relevant
-    return 360      # very stale — slow way down
+    return 120  # stale but never wait more than 2h
 
 
 def _should_scan_now(search: dict, interval_minutes: int) -> bool:
@@ -105,21 +107,34 @@ def _should_scan_now(search: dict, interval_minutes: int) -> bool:
 
 
 def _run_all_scans() -> None:
-    """Scheduled job: scan active searches according to tiered cadence. No emails."""
+    """Scheduled job: scan active searches with tiered cadence + count-check wake-up."""
     db = get_db()
     searches = db.list_all_active_searches()
-    due = []
+    full_scan = []
+    count_woken = []
     skipped = []
+
     for search in searches:
         interval = _scan_interval_minutes(search, db)
         if _should_scan_now(search, interval):
-            due.append((search, interval))
+            full_scan.append(search)
+        elif interval >= 120:
+            # Hibernating/cooling — do a cheap count check to detect new inventory
+            current_count = fetch_marketcheck_count(search)
+            stored_count = search.get("last_listing_count") or 0
+            if current_count >= 0 and current_count != stored_count:
+                print(f"[scanner] Count changed for {search['id']}: "
+                      f"{stored_count} → {current_count} — waking up")
+                count_woken.append(search)
+            else:
+                skipped.append(search["id"])
         else:
             skipped.append(search["id"])
 
-    print(f"[scanner] Tick — {len(due)} due, {len(skipped)} skipped (tiered cadence)")
-    for search, interval in due:
-        print(f"[scanner] Scanning {search['make']} {search['model']} (interval={interval}min)")
+    print(f"[scanner] Tick — {len(full_scan)} full scans, "
+          f"{len(count_woken)} count-woken, {len(skipped)} skipped")
+
+    for search in full_scan + count_woken:
         trigger_scan_for_search(search)
 
 def _run_all_alerts() -> None:
@@ -161,6 +176,47 @@ def _run_all_alerts() -> None:
         # Always update last_alerted_at so interval resets even if no email was sent
         db.update_scan_timestamps(search["id"], last_alerted_at=now.isoformat())
 
+def _run_quiet_alerts() -> None:
+    """Send a weekly nudge email for searches that have been quiet 7+ days."""
+    from email_alert import send_quiet_alert
+    db = get_db()
+    searches = db.list_all_active_searches()
+    now = datetime.now()
+    for search in searches:
+        # Only alert searches with an email address
+        if not search.get("alert_emails"):
+            continue
+        # Check last match date
+        row = db.conn.execute(
+            "SELECT MAX(first_seen) as latest FROM listings WHERE search_id = ?",
+            (search["id"],)
+        ).fetchone()
+        latest_str = row["latest"] if row else None
+        if not latest_str:
+            # Never found anything — use created_at
+            latest_str = search.get("created_at", now.isoformat())
+        try:
+            days_quiet = (now - datetime.fromisoformat(latest_str)).days
+        except Exception:
+            continue
+        if days_quiet < 7:
+            continue  # Not quiet enough
+        # Only send once per week — use last_alerted_at as proxy
+        last_alerted = search.get("last_alerted_at")
+        if last_alerted:
+            try:
+                days_since_alert = (now - datetime.fromisoformat(last_alerted)).days
+                if days_since_alert < 7:
+                    continue
+            except Exception:
+                pass
+        print(f"[quiet] Sending quiet alert for search {search['id']} ({days_quiet} days quiet)")
+        try:
+            send_quiet_alert(search, days_quiet)
+        except Exception as e:
+            print(f"[quiet] Failed: {e}")
+
+
 def start():
     flask_app = create_app()
     scheduler = BackgroundScheduler()
@@ -170,6 +226,9 @@ def start():
 
     # Check who needs an alert every 5 minutes
     scheduler.add_job(_run_all_alerts, "interval", minutes=5, id="alert_all")
+
+    # Send weekly quiet-search nudge emails once daily
+    scheduler.add_job(_run_quiet_alerts, "interval", hours=24, id="quiet_alerts")
 
     scheduler.start()
 

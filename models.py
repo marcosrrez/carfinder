@@ -115,6 +115,12 @@ class Database:
                 self.conn.commit()
             except Exception:
                 pass
+        # Migrate: add last_listing_count column
+        try:
+            self.conn.execute("ALTER TABLE searches ADD COLUMN last_listing_count INTEGER DEFAULT 0")
+            self.conn.commit()
+        except Exception:
+            pass
 
     def _row_to_dict(self, row) -> dict:
         return dict(row) if row else None
@@ -302,11 +308,14 @@ class Database:
         ).fetchall()
         return [r["listing_id"] for r in rows]
 
-    def update_scan_timestamps(self, search_id: str, last_scanned_at: str = None, last_alerted_at: str = None) -> None:
+    def update_scan_timestamps(self, search_id: str, last_scanned_at: str = None,
+                                last_alerted_at: str = None, last_listing_count: int = None) -> None:
         if last_scanned_at:
             self.conn.execute("UPDATE searches SET last_scanned_at = ? WHERE id = ?", (last_scanned_at, search_id))
         if last_alerted_at:
             self.conn.execute("UPDATE searches SET last_alerted_at = ? WHERE id = ?", (last_alerted_at, search_id))
+        if last_listing_count is not None:
+            self.conn.execute("UPDATE searches SET last_listing_count = ? WHERE id = ?", (last_listing_count, search_id))
         self.conn.commit()
 
     def close(self):

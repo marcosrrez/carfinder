@@ -173,6 +173,90 @@ def build_email_text(search: dict, listings: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def send_quiet_alert(search: dict, days_quiet: int) -> None:
+    recipients = [e.strip() for e in search.get("alert_emails", "").split(",") if e.strip()]
+    if not recipients:
+        return
+    make = search.get("make", "")
+    model = search.get("model", "")
+    year = search.get("year", "")
+    city = search.get("city", "")
+    radius = search.get("radius_miles") or search.get("radius") or 100
+    trims_str = search.get("trims", "")
+
+    if radius < 100:
+        suggestion = "Try expanding your radius to 150+ miles"
+    elif trims_str:
+        suggestion = "Remove trim filters to see more options"
+    else:
+        suggestion = "Consider raising your max price by 10–15%"
+
+    subject = f"Your {make} {model} hunt has been quiet for {days_quiet} days"
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CarFinder — {subject}</title>
+</head>
+<body style="margin:0;padding:0;background:#000000;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#000000;min-height:100vh;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table width="100%" style="max-width:560px;" cellpadding="0" cellspacing="0">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding-bottom:28px;">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;">
+                <span style="font-size:20px;font-weight:700;color:#f5f5f7;letter-spacing:-0.03em;">CarFinder</span>
+                <span style="font-size:12px;color:#636366;font-weight:500;padding:2px 8px;border-radius:99px;border:1px solid #2c2c2e;">Alert</span>
+              </div>
+              <h1 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#f5f5f7;letter-spacing:-0.04em;line-height:1.2;">Still hunting for you</h1>
+              <p style="margin:0;font-size:14px;color:#636366;letter-spacing:-0.01em;">We've been scanning for your {year} {make} {model} near {city} for {days_quiet} days without new matches.</p>
+            </td>
+          </tr>
+
+          <!-- Suggestion -->
+          <tr>
+            <td style="padding-bottom:28px;">
+              <div style="border-radius:12px;background:#1c1c1e;border:1px solid #2c2c2e;padding:20px;">
+                <div style="font-size:13px;font-weight:600;color:#ff9f0a;letter-spacing:-0.01em;text-transform:uppercase;margin-bottom:8px;">Suggestion</div>
+                <p style="margin:0 0 16px;font-size:15px;color:#f5f5f7;letter-spacing:-0.02em;">{suggestion}</p>
+                <a href="#" style="display:inline-block;padding:10px 20px;border-radius:8px;background:#0a84ff;color:#fff;font-size:13px;font-weight:600;text-decoration:none;letter-spacing:-0.01em;">Adjust your search →</a>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding-top:28px;border-top:1px solid #1c1c1e;">
+              <p style="margin:0 0 4px;font-size:12px;color:#48484a;letter-spacing:-0.01em;">
+                You're receiving this because you set up a CarFinder search for <strong style="color:#636366;">{year} {make} {model}</strong>.
+              </p>
+              <p style="margin:0;font-size:12px;color:#48484a;letter-spacing:-0.01em;">
+                Manage your searches at <a href="https://carfinder-ui.vercel.app" style="color:#636366;text-decoration:none;">carfinder-ui.vercel.app</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+    resend.api_key = RESEND_API_KEY
+    resend.Emails.send({
+        "from": RESEND_FROM,
+        "to": recipients,
+        "subject": subject,
+        "html": html,
+        "text": f"Still hunting for you\n\nWe've been scanning for your {year} {make} {model} near {city} for {days_quiet} days without new matches.\n\n{suggestion}\n\nManage your searches at https://carfinder-ui.vercel.app",
+    })
+    print(f"[email] Sent quiet alert: {subject} → {', '.join(recipients)}")
+
+
 def send_alert(search: dict, listings: list[dict]) -> None:
     if not listings:
         return
