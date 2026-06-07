@@ -55,3 +55,30 @@ def test_deal_fair():
 def test_deal_high():
     d = deal_for(_listing(20000, 80000, market=18000))
     assert d["key"] == "high"
+
+from scorer import trim_matches
+
+def test_trim_matches_when_listing_trim_in_selected():
+    listing = {"trim": "XLE Premium", "title": "2016 Toyota Highlander XLE Premium"}
+    search = {"trims": "XLE,Limited"}
+    assert trim_matches(listing, search) is True
+
+def test_trim_matches_uses_title_as_fallback():
+    listing = {"trim": "", "title": "2016 Toyota Highlander XLE AWD"}
+    search = {"trims": "XLE"}
+    assert trim_matches(listing, search) is True
+
+def test_trim_no_match():
+    listing = {"trim": "LE", "title": "2016 Toyota Highlander LE"}
+    search = {"trims": "XLE,Limited"}
+    assert trim_matches(listing, search) is False
+
+def test_trim_empty_trims_returns_false():
+    listing = {"trim": "XLE", "title": ""}
+    search = {"trims": ""}
+    assert trim_matches(listing, search) is False
+
+def test_trim_no_trims_key_returns_false():
+    listing = {"trim": "XLE", "title": ""}
+    search = {}
+    assert trim_matches(listing, search) is False

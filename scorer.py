@@ -37,3 +37,16 @@ def deal_for(listing: dict) -> dict:
     if delta <= 600:
         return {"key": "fair", "label": "Fair price", "delta": delta}
     return {"key": "high", "label": "Above market", "delta": delta}
+
+
+def trim_matches(listing: dict, search: dict) -> bool:
+    """True if the listing's trim matches any of the search's selected trims."""
+    trims_str = search.get("trims", "")
+    if not trims_str:
+        return False
+    selected = [t.strip().lower() for t in trims_str.split(",") if t.strip()]
+    if not selected:
+        return False
+    # Check trim field first, fall back to title
+    text = (listing.get("trim") or listing.get("title") or "").lower()
+    return any(t in text for t in selected)

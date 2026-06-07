@@ -20,7 +20,7 @@ def get_listings(search_id):
     listings = g.db.get_listings(search_id)
     saved_ids = set(g.db.get_saved_ids(user_id))
     hidden_ids = set(g.db.get_hidden_ids(user_id))
-    from scorer import score_listing, deal_for
+    from scorer import score_listing, deal_for, trim_matches
     result = []
     for l in listings:
         if l["id"] in hidden_ids:
@@ -34,6 +34,7 @@ def get_listings(search_id):
             "tier": tier,
             "deal": deal,
             "saved": l["id"] in saved_ids,
+            "trimMatch": trim_matches(l, search),
         })
     result.sort(key=lambda x: (["ideal","good","ok"].index(x["tier"]), x["deal"]["delta"], x["price"]))
     return jsonify(result)
