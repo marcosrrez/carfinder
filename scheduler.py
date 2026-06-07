@@ -62,11 +62,53 @@ def _run_all_active_searches() -> None:
     for search in searches:
         trigger_scan_for_search(search)
 
+def _schedule_search(scheduler: BackgroundScheduler, search: dict) -> None:
+    """Add or replace a scheduled job for a single search."""
+    job_id = f"scan_{search['id']}"
+    hours = max(1, int(search.get("interval_hours") or 2))
+    scheduler.add_job(
+        trigger_scan_for_search,
+        "interval",
+        hours=hours,
+        id=job_id,
+        args=[search],
+        replace_existing=True,
+    )
+    print(f"[scheduler] Scheduled {search['make']} {search['model']} every {hours}h (job={job_id})")
+
+
+def reschedule_all(scheduler: BackgroundScheduler) -> None:
+    """Re-read all active searches from DB and sync scheduler jobs."""
+    db = get_db()
+    searches = db.list_all_active_searches()
+    active_ids = {f"scan_{s['id']}" for s in searches}
+
+    # Remove jobs for deleted/inactive searches
+    for job in scheduler.get_jobs():
+        if job.id.startswith("scan_") and job.id not in active_ids:
+            scheduler.remove_job(job.id)
+            print(f"[scheduler] Removed job {job.id}")
+
+    # Add/update jobs for active searches
+    for search in searches:
+        _schedule_search(scheduler, search)
+
+
 def start():
     flask_app = create_app()
     scheduler = BackgroundScheduler()
-    scheduler.add_job(_run_all_active_searches, "interval", hours=2, id="scan_all")
+
+    # Sync all per-search jobs every 5 minutes (picks up new searches, interval changes)
+    scheduler.add_job(
+        lambda: reschedule_all(scheduler),
+        "interval",
+        minutes=5,
+        id="reschedule_all",
+    )
+
     scheduler.start()
+    reschedule_all(scheduler)
+
     print("[scheduler] APScheduler started. Running initial scan...")
     threading.Thread(target=_run_all_active_searches, daemon=True).start()
     port = int(os.environ.get("PORT", 5001))

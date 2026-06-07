@@ -4,12 +4,8 @@ from config import MARKETCHECK_API_KEY
 
 BASE_URL = "https://mc-api.marketcheck.com/v2/search/car/active"
 
-SEARCH_ZIPS = [
-    "72761", "74101", "64801", "65801",
-    "72901", "73101", "72201", "64108",
-]
-
 def _fetch_zip(search: dict, zip_code: str) -> list[dict]:
+    radius = search.get("radius_miles") or search.get("radius") or 100
     params = {
         "api_key": MARKETCHECK_API_KEY,
         "year": search["year"],
@@ -18,7 +14,7 @@ def _fetch_zip(search: dict, zip_code: str) -> list[dict]:
         "price_max": search["max_price"],
         "miles_max": search["max_miles"],
         "zip": zip_code,
-        "radius": 100,
+        "radius": radius,
         "rows": 100,
         "start": 0,
         "fields": "id,heading,price,miles,dealer,dist,vdp_url,build,extra,dom,media,seller,vin,price_history",
@@ -88,13 +84,17 @@ def _normalize(item: dict, search_id: str) -> dict:
     }
 
 def fetch_marketcheck_listings(search: dict) -> list[dict]:
+    """Fetch listings using the search's own zip and radius_miles."""
     seen_ids = set()
     results = []
-    for zip_code in SEARCH_ZIPS:
-        for item in _fetch_zip(search, zip_code):
-            normalized = _normalize(item, search["id"])
-            if normalized["id"] not in seen_ids:
-                seen_ids.add(normalized["id"])
-                results.append(normalized)
-    print(f"[marketcheck] {len(results)} unique listings for {search['make']} {search['model']}")
+    zip_code = str(search.get("zip", "")).strip()
+    if not zip_code:
+        print(f"[marketcheck] No zip for search {search['id']} — skipping")
+        return []
+    for item in _fetch_zip(search, zip_code):
+        normalized = _normalize(item, search["id"])
+        if normalized["id"] not in seen_ids:
+            seen_ids.add(normalized["id"])
+            results.append(normalized)
+    print(f"[marketcheck] {len(results)} unique listings for {search['make']} {search['model']} near {zip_code}")
     return results
