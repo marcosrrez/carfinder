@@ -1,10 +1,35 @@
 # scanner/marketcheck.py
+import hashlib
+import time
 import requests
 from config import MARKETCHECK_API_KEY
 
 BASE_URL = "https://mc-api.marketcheck.com/v2/search/car/active"
 
-def _fetch_zip(search: dict, zip_code: str) -> list[dict]:
+# In-memory query cache: hash -> (raw_items, timestamp)
+# Shared across searches with identical query params — one API call serves many users.
+_cache: dict[str, tuple[list, float]] = {}
+CACHE_TTL = 900  # 15 minutes
+
+
+def _query_key(search: dict) -> str:
+    """Stable hash of the fields that determine what Marketcheck returns."""
+    parts = [
+        str(search.get("make", "")).lower(),
+        str(search.get("model", "")).lower(),
+        str(search.get("year", "")),
+        str(search.get("max_price", "")),
+        str(search.get("max_miles", "")),
+        str(search.get("zip", "")),
+        str(search.get("radius_miles") or search.get("radius") or 100),
+        str(search.get("trims", "")).lower(),
+        str(search.get("drivetrain", "Any")).lower(),
+    ]
+    return hashlib.md5("|".join(parts).encode()).hexdigest()
+
+
+def _fetch_raw(search: dict, zip_code: str) -> list[dict]:
+    """Hit Marketcheck and return raw listing dicts. No caching here."""
     radius = search.get("radius_miles") or search.get("radius") or 100
     params = {
         "api_key": MARKETCHECK_API_KEY,
@@ -19,12 +44,9 @@ def _fetch_zip(search: dict, zip_code: str) -> list[dict]:
         "start": 0,
         "fields": "id,heading,price,miles,dealer,dist,vdp_url,build,extra,dom,media,seller,vin,price_history",
     }
-    # Trim filter — comma-separated, Marketcheck matches any (OR logic)
     trims_str = search.get("trims", "")
     if trims_str:
         params["trim"] = trims_str
-
-    # Drivetrain filter — AND on top of trim selection
     drivetrain = search.get("drivetrain", "Any")
     if drivetrain and drivetrain != "Any":
         params["drivetrain"] = drivetrain
@@ -36,6 +58,7 @@ def _fetch_zip(search: dict, zip_code: str) -> list[dict]:
     except requests.RequestException as e:
         print(f"[marketcheck] {zip_code} error (skipping): {e}")
         return []
+
 
 def _normalize(item: dict, search_id: str) -> dict:
     build = item.get("build") or {}
@@ -66,7 +89,7 @@ def _normalize(item: dict, search_id: str) -> dict:
         "distance": item.get("dist", 0),
         "source": "marketcheck",
         "url": item.get("vdp_url", ""),
-        "market": None,  # filled by compute_market_values
+        "market": None,
         "drivetrain": build.get("drivetrain", ""),
         "exterior": build.get("ext_color_generic", ""),
         "interior": build.get("int_color_generic", ""),
@@ -83,18 +106,42 @@ def _normalize(item: dict, search_id: str) -> dict:
         "is_new": 1,
     }
 
+
+def clear_cache() -> None:
+    """Clear the query cache — used in tests to prevent cross-test pollution."""
+    _cache.clear()
+
+
 def fetch_marketcheck_listings(search: dict) -> list[dict]:
-    """Fetch listings using the search's own zip and radius_miles."""
-    seen_ids = set()
-    results = []
+    """Fetch listings using the search's zip and radius.
+
+    Results are cached for CACHE_TTL seconds keyed on query params —
+    multiple searches for the same make/model/area share one API call.
+    """
     zip_code = str(search.get("zip", "")).strip()
     if not zip_code:
         print(f"[marketcheck] No zip for search {search['id']} — skipping")
         return []
-    for item in _fetch_zip(search, zip_code):
+
+    key = _query_key(search)
+    now = time.time()
+    cached_items, cached_at = _cache.get(key, (None, 0))
+
+    if cached_items is not None and (now - cached_at) < CACHE_TTL:
+        print(f"[marketcheck] Cache hit for {search['make']} {search['model']} "
+              f"near {zip_code} (age {int(now - cached_at)}s) — {len(cached_items)} items")
+        raw_items = cached_items
+    else:
+        raw_items = _fetch_raw(search, zip_code)
+        _cache[key] = (raw_items, now)
+        print(f"[marketcheck] Fetched {len(raw_items)} listings for "
+              f"{search['make']} {search['model']} near {zip_code}")
+
+    seen_ids: set[str] = set()
+    results = []
+    for item in raw_items:
         normalized = _normalize(item, search["id"])
         if normalized["id"] not in seen_ids:
             seen_ids.add(normalized["id"])
             results.append(normalized)
-    print(f"[marketcheck] {len(results)} unique listings for {search['make']} {search['model']} near {zip_code}")
     return results

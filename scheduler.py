@@ -51,12 +51,75 @@ def trigger_scan_for_user(user_id: str) -> None:
     for search in searches:
         trigger_scan_for_search(search)
 
+def _scan_interval_minutes(search: dict, db) -> int:
+    """Return how often (in minutes) this search should be scanned.
+
+    Tiers:
+      - New search (< 24h old): 20 min — user is actively hunting
+      - Has listings found recently (< 7 days): 20 min — hot search
+      - No matches in 7–30 days: 120 min — cooling off
+      - No matches ever or > 30 days stale: 360 min — hibernating
+    """
+    now = datetime.now()
+    created_at_str = search.get("created_at") or ""
+    try:
+        age_hours = (now - datetime.fromisoformat(created_at_str)).total_seconds() / 3600
+    except Exception:
+        age_hours = 999
+
+    if age_hours < 24:
+        return 20  # brand-new search, always hot
+
+    # Check when we last found a new listing
+    row = db.conn.execute(
+        "SELECT MAX(first_seen) as latest FROM listings WHERE search_id = ?",
+        (search["id"],)
+    ).fetchone()
+    latest_str = row["latest"] if row else None
+
+    if not latest_str:
+        return 360  # never found anything — hibernate
+
+    try:
+        days_since_match = (now - datetime.fromisoformat(latest_str)).days
+    except Exception:
+        days_since_match = 999
+
+    if days_since_match < 7:
+        return 20   # actively finding things
+    if days_since_match < 30:
+        return 120  # quieter but still relevant
+    return 360      # very stale — slow way down
+
+
+def _should_scan_now(search: dict, interval_minutes: int) -> bool:
+    """True if enough time has passed since the last scan for this search."""
+    last_str = search.get("last_scanned_at")
+    if not last_str:
+        return True
+    try:
+        elapsed = (datetime.now() - datetime.fromisoformat(last_str)).total_seconds() / 60
+        return elapsed >= interval_minutes
+    except Exception:
+        return True
+
+
 def _run_all_scans() -> None:
-    """Scheduled job: scan every active search. No emails."""
+    """Scheduled job: scan active searches according to tiered cadence. No emails."""
     db = get_db()
     searches = db.list_all_active_searches()
-    print(f"[scanner] Scheduled scan — {len(searches)} active searches")
+    due = []
+    skipped = []
     for search in searches:
+        interval = _scan_interval_minutes(search, db)
+        if _should_scan_now(search, interval):
+            due.append((search, interval))
+        else:
+            skipped.append(search["id"])
+
+    print(f"[scanner] Tick — {len(due)} due, {len(skipped)} skipped (tiered cadence)")
+    for search, interval in due:
+        print(f"[scanner] Scanning {search['make']} {search['model']} (interval={interval}min)")
         trigger_scan_for_search(search)
 
 def _run_all_alerts() -> None:

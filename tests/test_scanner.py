@@ -1,9 +1,16 @@
 # tests/test_scanner.py
 import pytest
 from unittest.mock import patch, MagicMock
-from scanner.marketcheck import fetch_marketcheck_listings
+from scanner.marketcheck import fetch_marketcheck_listings, clear_cache
 from scanner.playwright_scraper import fetch_playwright_listings
 from scanner import run_scan, compute_market_values
+
+@pytest.fixture(autouse=True)
+def reset_marketcheck_cache():
+    """Clear the Marketcheck query cache before each test to prevent pollution."""
+    clear_cache()
+    yield
+    clear_cache()
 
 SEARCH = {
     "id": "s1", "make": "Toyota", "model": "Highlander", "year": 2016,
@@ -79,7 +86,7 @@ def test_fetch_zip_passes_trim_and_drivetrain_when_set():
     mock_resp.json.return_value = {"listings": []}
     mock_resp.raise_for_status = MagicMock()
     with patch("scanner.marketcheck.requests.get", return_value=mock_resp) as mock_get:
-        from scanner.marketcheck import _fetch_zip
+        from scanner.marketcheck import _fetch_raw as _fetch_zip
         _fetch_zip(search, "72761")
         call_params = mock_get.call_args[1]["params"]
         assert call_params.get("trim") == "XLE,Limited"
@@ -96,7 +103,7 @@ def test_fetch_zip_omits_trim_and_drivetrain_when_empty():
     mock_resp.json.return_value = {"listings": []}
     mock_resp.raise_for_status = MagicMock()
     with patch("scanner.marketcheck.requests.get", return_value=mock_resp) as mock_get:
-        from scanner.marketcheck import _fetch_zip
+        from scanner.marketcheck import _fetch_raw as _fetch_zip
         _fetch_zip(search, "72761")
         call_params = mock_get.call_args[1]["params"]
         assert "trim" not in call_params
