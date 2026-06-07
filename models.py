@@ -27,6 +27,8 @@ class Database:
                 radius_miles INTEGER NOT NULL DEFAULT 300,
                 interval_hours INTEGER NOT NULL DEFAULT 2,
                 alert_emails TEXT NOT NULL DEFAULT '',
+                trims TEXT NOT NULL DEFAULT '',
+                drivetrain TEXT NOT NULL DEFAULT 'Any',
                 active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL
             );
@@ -85,6 +87,24 @@ class Database:
             self.conn.commit()
         except Exception:
             pass  # Column already exists
+        # Migrate: add trims and drivetrain columns
+        for col_def in [
+            "trims TEXT NOT NULL DEFAULT ''",
+            "drivetrain TEXT NOT NULL DEFAULT 'Any'",
+        ]:
+            try:
+                self.conn.execute(f"ALTER TABLE searches ADD COLUMN {col_def}")
+                self.conn.commit()
+            except Exception:
+                pass
+        # Copy existing single trim value into trims column
+        try:
+            self.conn.execute(
+                "UPDATE searches SET trims = trim WHERE trims = '' AND trim != ''"
+            )
+            self.conn.commit()
+        except Exception:
+            pass
 
     def _row_to_dict(self, row) -> dict:
         return dict(row) if row else None
@@ -98,13 +118,14 @@ class Database:
             INSERT INTO searches
             (id, user_id, make, model, trim, year, max_price, ideal_price,
              max_miles, ideal_miles, zip, city, radius_miles, interval_hours,
-             alert_emails, active, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
+             alert_emails, trims, drivetrain, active, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
         """, (search_id, data["user_id"], data["make"], data["model"],
               data.get("trim", ""), data["year"], data["max_price"],
               data["ideal_price"], data["max_miles"], data["ideal_miles"],
               data["zip"], data["city"], data["radius_miles"],
-              data["interval_hours"], data["alert_emails"], now))
+              data["interval_hours"], data["alert_emails"],
+              data.get("trims", ""), data.get("drivetrain", "Any"), now))
         self.conn.commit()
         return self.get_search(search_id)
 
@@ -130,7 +151,7 @@ class Database:
     def update_search(self, search_id: str, data: dict) -> dict:
         fields = ["make", "model", "trim", "year", "max_price", "ideal_price",
                   "max_miles", "ideal_miles", "zip", "city", "radius_miles",
-                  "interval_hours", "alert_emails"]
+                  "interval_hours", "alert_emails", "trims", "drivetrain"]
         sets = ", ".join(f"{f} = ?" for f in fields if f in data)
         vals = [data[f] for f in fields if f in data] + [search_id]
         if sets:

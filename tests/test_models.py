@@ -87,3 +87,33 @@ def test_get_saved_ids(db):
     db.save_listing("user_2", "mc_c")
     ids = db.get_saved_ids("user_1")
     assert set(ids) == {"mc_a", "mc_b"}
+
+def test_searches_has_trims_and_drivetrain_columns(db):
+    """searches table has trims and drivetrain columns."""
+    row = db.conn.execute("PRAGMA table_info(searches)").fetchall()
+    col_names = [r[1] for r in row]
+    assert "trims" in col_names
+    assert "drivetrain" in col_names
+
+def test_create_search_stores_trims_and_drivetrain(db):
+    """create_search round-trips trims and drivetrain."""
+    import tempfile, os
+    from models import Database
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        path = f.name
+    try:
+        d = Database(path)
+        data = {
+            "user_id": "u1", "make": "Toyota", "model": "Highlander",
+            "trim": "", "year": 2016, "max_price": 25000, "ideal_price": 20000,
+            "max_miles": 130000, "ideal_miles": 90000, "zip": "72761",
+            "city": "Siloam Springs", "radius_miles": 100,
+            "interval_hours": 2, "alert_emails": "a@test.com",
+            "trims": "XLE,Limited", "drivetrain": "AWD",
+        }
+        result = d.create_search(data)
+        assert result["trims"] == "XLE,Limited"
+        assert result["drivetrain"] == "AWD"
+        d.close()
+    finally:
+        os.unlink(path)

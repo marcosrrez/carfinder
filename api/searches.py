@@ -31,6 +31,8 @@ def create_search():
     data.setdefault("interval_hours", 2)
     data.setdefault("city", data.get("zip", ""))
     data.setdefault("trim", "")
+    data.setdefault("trims", "")
+    data.setdefault("drivetrain", "Any")
     required = ["make", "model", "year", "max_price", "ideal_price",
                 "max_miles", "ideal_miles", "zip", "alert_emails"]
     for field in required:
