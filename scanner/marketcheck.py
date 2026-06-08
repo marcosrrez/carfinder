@@ -30,7 +30,8 @@ def _query_key(search: dict) -> str:
 
 def _fetch_raw(search: dict, zip_code: str) -> list[dict]:
     """Hit Marketcheck and return raw listing dicts. No caching here."""
-    radius = search.get("radius_miles") or search.get("radius") or 100
+    # Plan limit: max 100 miles. Clamp regardless of what the search stores.
+    radius = min(100, int(search.get("radius_miles") or search.get("radius") or 100))
     params = {
         "api_key": MARKETCHECK_API_KEY,
         "year": search["year"],
@@ -65,7 +66,7 @@ def fetch_marketcheck_count(search: dict) -> int:
     zip_code = str(search.get("zip", "")).strip()
     if not zip_code:
         return -1
-    radius = search.get("radius_miles") or search.get("radius") or 100
+    radius = min(100, int(search.get("radius_miles") or search.get("radius") or 100))
     params = {
         "api_key": MARKETCHECK_API_KEY,
         "year": search["year"],

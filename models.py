@@ -24,7 +24,7 @@ class Database:
                 ideal_miles INTEGER NOT NULL,
                 zip TEXT NOT NULL,
                 city TEXT NOT NULL,
-                radius_miles INTEGER NOT NULL DEFAULT 300,
+                radius_miles INTEGER NOT NULL DEFAULT 100,
                 interval_hours INTEGER NOT NULL DEFAULT 2,
                 alert_emails TEXT NOT NULL DEFAULT '',
                 trims TEXT NOT NULL DEFAULT '',
