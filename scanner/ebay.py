@@ -17,11 +17,6 @@ try:
 except ImportError:
     EBAY_APP_ID = None
 
-# Allow tests to run without a real key by using a placeholder.
-# The actual API call will fail with an invalid key, but unit tests mock requests.get.
-if not EBAY_APP_ID:
-    EBAY_APP_ID = "TEST_PLACEHOLDER"
-
 FINDING_API_URL = "https://svcs.ebay.com/services/search/FindingService/v1"
 CACHE_TTL = 900  # 15 minutes
 _cache: dict[str, tuple[list, float]] = {}
