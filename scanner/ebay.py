@@ -32,7 +32,9 @@ def _query_key(search: dict) -> str:
         str(search.get("model", "")).lower(),
         str(search.get("year", "")),
         str(search.get("max_price", "")),
+        str(search.get("max_miles", "")),
         str(search.get("zip", "")),
+        str(search.get("radius_miles") or search.get("radius") or 100),
     ]
     return "eb_" + hashlib.md5("|".join(parts).encode()).hexdigest()
 
@@ -118,6 +120,8 @@ def fetch_ebay_listings(search: dict) -> list[dict]:
     results = []
     for item in raw_items:
         normalized = _normalize(item, search["id"])
+        # Only filter by miles when we actually parsed a mileage from the title
+        # (miles == 0 means "unknown", not "zero miles driven")
         if normalized["miles"] and normalized["miles"] > search.get("max_miles", 999999):
             continue
         if normalized["id"] not in seen_ids:

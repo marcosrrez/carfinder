@@ -58,8 +58,9 @@ def test_fetch_returns_normalized_listings():
     mock_resp.json.return_value = FAKE_RESPONSE
     mock_resp.raise_for_status = MagicMock()
 
-    with patch("scanner.ebay.requests.get", return_value=mock_resp):
-        results = fetch_ebay_listings(SEARCH)
+    with patch("scanner.ebay.EBAY_APP_ID", "test_app_id"):
+        with patch("scanner.ebay.requests.get", return_value=mock_resp):
+            results = fetch_ebay_listings(SEARCH)
 
     assert len(results) == 1
     assert results[0]["id"] == "eb_987654321"
@@ -81,13 +82,54 @@ def test_fetch_uses_cache_on_second_call():
     mock_resp.json.return_value = FAKE_RESPONSE
     mock_resp.raise_for_status = MagicMock()
 
-    with patch("scanner.ebay.requests.get", return_value=mock_resp) as mock_get:
-        fetch_ebay_listings(SEARCH)
-        fetch_ebay_listings(SEARCH)
-        assert mock_get.call_count == 1  # second call served from cache
+    with patch("scanner.ebay.EBAY_APP_ID", "test_app_id"):
+        with patch("scanner.ebay.requests.get", return_value=mock_resp) as mock_get:
+            fetch_ebay_listings(SEARCH)
+            fetch_ebay_listings(SEARCH)
+            assert mock_get.call_count == 1  # second call served from cache
 
 
 def test_fetch_returns_empty_without_app_id():
     with patch("scanner.ebay.EBAY_APP_ID", None):
         results = fetch_ebay_listings(SEARCH)
     assert results == []
+
+
+def test_fetch_filters_by_max_miles():
+    """Listings with parsed miles exceeding max_miles are excluded."""
+    high_miles_item = dict(FAKE_ITEM)
+    high_miles_item["title"] = ["2016 Toyota Highlander 200k miles"]  # over limit
+    response = {
+        "findItemsAdvancedResponse": [{
+            "ack": ["Success"],
+            "searchResult": [{"@count": "1", "item": [high_miles_item]}],
+        }]
+    }
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = response
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch("scanner.ebay.EBAY_APP_ID", "test_app_id"):
+        with patch("scanner.ebay.requests.get", return_value=mock_resp):
+            results = fetch_ebay_listings(SEARCH)  # SEARCH has max_miles=130000
+
+    assert results == []
+
+
+def test_fetch_deduplicates_by_id():
+    """If API returns same itemId twice, only one listing is returned."""
+    dup_response = {
+        "findItemsAdvancedResponse": [{
+            "ack": ["Success"],
+            "searchResult": [{"@count": "2", "item": [FAKE_ITEM, FAKE_ITEM]}],
+        }]
+    }
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = dup_response
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch("scanner.ebay.EBAY_APP_ID", "test_app_id"):
+        with patch("scanner.ebay.requests.get", return_value=mock_resp):
+            results = fetch_ebay_listings(SEARCH)
+
+    assert len(results) == 1
