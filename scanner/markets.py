@@ -92,11 +92,9 @@ def zip_to_coords(zip_code: str) -> tuple[float, float] | None:
     try:
         nomi = _get_nomi()
         result = nomi.query_postal_code(zip_code.strip())
-        if result is None:
-            return None
-        lat = result.get("latitude") if hasattr(result, "get") else getattr(result, "latitude", None)
-        lon = result.get("longitude") if hasattr(result, "get") else getattr(result, "longitude", None)
-        if lat is None or lon is None or (hasattr(lat, '__float__') and math.isnan(float(lat))):
+        lat = result.get("latitude")
+        lon = result.get("longitude")
+        if lat is None or lon is None or math.isnan(float(lat)) or math.isnan(float(lon)):
             return None
         return float(lat), float(lon)
     except Exception:
@@ -120,7 +118,7 @@ def craigslist_markets_near(zip_code: str, radius_miles: int) -> list[tuple[str,
     Deduplicates by subdomain (multiple cities may share one CL site).
     """
     coords = zip_to_coords(zip_code)
-    if not coords:
+    if coords is None:
         return []
     lat, lon = coords
     seen_subdomains: set[str] = set()
