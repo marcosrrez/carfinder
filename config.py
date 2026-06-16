@@ -10,6 +10,8 @@ def _require(key: str) -> str:
     return val
 
 MARKETCHECK_API_KEY = _require("MARKETCHECK_API_KEY")
+# Optional — eBay Motors Finding API. If missing, eBay source is skipped.
+EBAY_APP_ID = os.environ.get("EBAY_APP_ID")
 RESEND_API_KEY = _require("RESEND_API_KEY")
 RESEND_FROM = _require("RESEND_FROM")
 ALERT_EMAIL = _require("ALERT_EMAIL")
