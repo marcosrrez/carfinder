@@ -108,3 +108,49 @@ def test_fetch_zip_omits_trim_and_drivetrain_when_empty():
         call_params = mock_get.call_args[1]["params"]
         assert "trim" not in call_params
         assert "drivetrain" not in call_params
+
+
+def test_run_scan_deduplicates_by_id():
+    """If two sources return same listing ID, only one appears in output."""
+    dup_listing = {
+        "id": "mc_shared123", "search_id": "s1",
+        "title": "2016 Toyota Highlander XLE", "price": 17000, "miles": 80000,
+        "city": "Tulsa", "state": "OK", "distance": 28,
+        "source": "marketcheck", "url": "https://example.com/1",
+        "market": None, "drivetrain": "", "exterior": "", "interior": "",
+        "owners": None, "accidents": None, "days_listed": None, "photos": 2,
+        "seller_type": "Dealer", "seller_name": "Test Dealer",
+        "seller_rating": None, "vin": "", "drop_amount": None,
+        "drop_when": None, "is_new": 1,
+    }
+
+    with patch("scanner.fetch_marketcheck_listings", return_value=[dup_listing]), \
+         patch("scanner.fetch_ebay_listings", return_value=[{**dup_listing, "source": "ebay"}]), \
+         patch("scanner.fetch_craigslist_listings", return_value=[]):
+        results = run_scan(SEARCH)
+
+    ids = [r["id"] for r in results]
+    assert ids.count("mc_shared123") == 1
+
+
+def test_run_scan_merges_all_sources():
+    """run_scan combines marketcheck, ebay, and craigslist listings."""
+    mc = {"id": "mc_1", "search_id": "s1", "title": "2016 Toyota Highlander XLE",
+          "price": 17000, "miles": 80000, "city": "A", "state": "AR", "distance": 10,
+          "source": "marketcheck", "url": "https://mc.com/1", "market": None,
+          "drivetrain": "", "exterior": "", "interior": "", "owners": None,
+          "accidents": None, "days_listed": None, "photos": 0, "seller_type": "Dealer",
+          "seller_name": "", "seller_rating": None, "vin": "", "drop_amount": None,
+          "drop_when": None, "is_new": 1}
+    eb = {**mc, "id": "eb_1", "source": "ebay", "price": 16000}
+    cl = {**mc, "id": "cl_1", "source": "craigslist", "price": 15500}
+
+    with patch("scanner.fetch_marketcheck_listings", return_value=[mc]), \
+         patch("scanner.fetch_ebay_listings", return_value=[eb]), \
+         patch("scanner.fetch_craigslist_listings", return_value=[cl]):
+        results = run_scan(SEARCH)
+
+    sources = {r["source"] for r in results}
+    assert "marketcheck" in sources
+    assert "ebay" in sources
+    assert "craigslist" in sources
