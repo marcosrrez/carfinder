@@ -7,6 +7,7 @@ Craigslist HTML layouts. One browser instance is shared across all markets.
 """
 import re
 import time
+from urllib.parse import quote_plus
 from playwright.sync_api import sync_playwright
 from scanner.markets import craigslist_markets_near
 
@@ -38,8 +39,8 @@ def _parse_miles_from_title(title: str) -> int | None:
 
 
 def _build_url(subdomain: str, search: dict) -> str:
-    make = search["make"].replace(" ", "+")
-    model = search["model"].replace(" ", "+")
+    make = quote_plus(search["make"])
+    model = quote_plus(search["model"])
     year = search["year"]
     max_price = search["max_price"]
     max_miles = search["max_miles"]
@@ -75,7 +76,8 @@ def _scrape_page_new_layout(page, subdomain: str, search: dict) -> list[dict]:
             listing_id = f"cl_{pid}"
             miles = _parse_miles_from_title(title)
             results.append(_make_listing(listing_id, search, title, price, miles, link, subdomain))
-        except Exception:
+        except Exception as e:
+            print(f"[craigslist] item parse error: {e}")
             continue
     return results
 
@@ -95,10 +97,13 @@ def _scrape_page_old_layout(page, subdomain: str, search: dict) -> list[dict]:
             price = int(re.sub(r"[^\d]", "", price_text)) if price_text else 0
             link = title_el.get_attribute("href") or ""
             pid = link.split("/")[-1].replace(".html", "")
+            if not pid:
+                continue
             listing_id = f"cl_{pid}"
             miles = _parse_miles_from_title(title)
             results.append(_make_listing(listing_id, search, title, price, miles, link, subdomain))
-        except Exception:
+        except Exception as e:
+            print(f"[craigslist] item parse error: {e}")
             continue
     return results
 
