@@ -41,3 +41,35 @@ def test_markets_returns_list_of_tuples():
 def test_markets_empty_for_bad_zip():
     result = craigslist_markets_near("00000", 100)
     assert result == []
+
+
+from unittest.mock import patch, MagicMock
+from scanner.craigslist import fetch_craigslist_listings, _parse_miles_from_title
+
+
+def test_parse_miles_from_title_k_notation():
+    assert _parse_miles_from_title("2016 Toyota Highlander 89k miles") == 89000
+
+
+def test_parse_miles_from_title_full():
+    assert _parse_miles_from_title("2016 Highlander 102,000 miles") == 102000
+
+
+def test_parse_miles_from_title_none():
+    assert _parse_miles_from_title("2016 Toyota Highlander XLE") is None
+
+
+def test_fetch_craigslist_returns_empty_on_playwright_error():
+    with patch("scanner.craigslist.sync_playwright") as mock_pw:
+        mock_pw.side_effect = Exception("browser not found")
+        result = fetch_craigslist_listings({"id": "s1", "make": "Toyota",
+            "model": "Highlander", "year": 2016, "max_price": 20000,
+            "max_miles": 130000, "zip": "72761", "radius_miles": 100})
+    assert result == []
+
+
+def test_fetch_craigslist_returns_empty_on_bad_zip():
+    result = fetch_craigslist_listings({"id": "s1", "make": "Toyota",
+        "model": "Highlander", "year": 2016, "max_price": 20000,
+        "max_miles": 130000, "zip": "00000", "radius_miles": 100})
+    assert result == []

@@ -70,7 +70,7 @@ def test_compute_market_values_uses_median():
     assert result[2]["market"] == 18000
 
 def test_playwright_returns_list_on_failure():
-    with patch("scanner.playwright_scraper.sync_playwright") as mock_pw:
+    with patch("scanner.craigslist.sync_playwright") as mock_pw:
         mock_pw.side_effect = Exception("browser unavailable")
         result = fetch_playwright_listings(SEARCH)
     assert result == []
