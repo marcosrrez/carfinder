@@ -2,8 +2,11 @@
 """Craigslist car listings scraper.
 
 Dynamically selects Craigslist metro areas within the search radius using
-scanner.markets. Handles both the old (.result-row) and new (li.cl-search-result)
-Craigslist HTML layouts. One browser instance is shared across all markets.
+scanner.markets. Handles Craigslist's three known layouts:
+  - Gallery mode (.gallery-card) — current default as of 2024
+  - List mode (li.cl-search-result) — previous layout
+  - Legacy (.result-row) — oldest layout
+One browser instance is shared across all markets.
 """
 import re
 import time
@@ -53,8 +56,41 @@ def _build_url(subdomain: str, search: dict) -> str:
     )
 
 
+def _scrape_page_gallery(page, subdomain: str, search: dict) -> list[dict]:
+    """Parse Craigslist's gallery mode layout: .gallery-card elements (current default)."""
+    items = page.query_selector_all(".gallery-card")
+    results = []
+    for item in items[:50]:
+        try:
+            anchor = item.query_selector("a.cl-app-anchor")
+            if not anchor:
+                continue
+            title = anchor.get_attribute("title") or ""
+            if not title:
+                label = item.query_selector(".label")
+                title = label.inner_text().strip() if label else ""
+            if not title:
+                continue
+            price_el = item.query_selector(".priceinfo") or item.query_selector(".price")
+            price_text = price_el.inner_text().strip() if price_el else ""
+            price = int(re.sub(r"[^\d]", "", price_text)) if price_text else 0
+            link = anchor.get_attribute("href") or ""
+            # Extract PID from URL: .../d/city-slug/7941235304.html
+            pid = re.search(r"/(\d+)\.html", link)
+            pid = pid.group(1) if pid else ""
+            if not pid:
+                continue
+            listing_id = f"cl_{pid}"
+            miles = _parse_miles_from_title(title)
+            results.append(_make_listing(listing_id, search, title, price, miles, link, subdomain))
+        except Exception as e:
+            print(f"[craigslist] item parse error: {e}")
+            continue
+    return results
+
+
 def _scrape_page_new_layout(page, subdomain: str, search: dict) -> list[dict]:
-    """Parse Craigslist's current (2024+) layout: li.cl-search-result elements."""
+    """Parse Craigslist's list layout: li.cl-search-result elements."""
     items = page.query_selector_all("li.cl-search-result")
     results = []
     for item in items[:25]:
@@ -177,13 +213,15 @@ def fetch_craigslist_listings(search: dict) -> list[dict]:
             for city_label, subdomain in markets:
                 url = _build_url(subdomain, search)
                 try:
-                    page.goto(url, timeout=_PAGE_TIMEOUT, wait_until="domcontentloaded")
-                    new_items = page.query_selector_all("li.cl-search-result")
-                    if new_items:
+                    page.goto(url, timeout=_PAGE_TIMEOUT, wait_until="networkidle")
+                    # Detect layout: gallery (current) → list → legacy
+                    if page.query_selector_all(".gallery-card"):
+                        listings = _scrape_page_gallery(page, subdomain, search)
+                    elif page.query_selector_all("li.cl-search-result"):
                         listings = _scrape_page_new_layout(page, subdomain, search)
                     else:
-                        page.wait_for_selector(".result-row", timeout=_SELECTOR_TIMEOUT)
-                        listings = _scrape_page_old_layout(page, subdomain, search)
+                        old_items = page.query_selector_all(".result-row")
+                        listings = _scrape_page_old_layout(page, subdomain, search) if old_items else []
 
                     fresh = [l for l in listings if l["id"] not in seen_ids]
                     for l in fresh:
