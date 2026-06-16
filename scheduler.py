@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from app import create_app, get_db
 from scanner import run_scan
-from scanner.marketcheck import fetch_marketcheck_count
 from email_alert import send_alert
 
 _status = {"scanning": False, "last_scan": None, "next_scan": None}
@@ -132,30 +131,18 @@ def _run_all_scans() -> None:
     db = get_db()
     searches = db.list_all_active_searches()
     full_scan = []
-    count_woken = []
     skipped = []
 
     for search in searches:
         interval = _scan_interval_minutes(search, db)
         if _should_scan_now(search, interval):
             full_scan.append(search)
-        elif interval >= 120:
-            # Hibernating/cooling — do a cheap count check to detect new inventory
-            current_count = fetch_marketcheck_count(search)
-            stored_count = search.get("last_listing_count") or 0
-            if current_count >= 0 and current_count != stored_count:
-                print(f"[scanner] Count changed for {search['id']}: "
-                      f"{stored_count} → {current_count} — waking up")
-                count_woken.append(search)
-            else:
-                skipped.append(search["id"])
         else:
             skipped.append(search["id"])
 
-    print(f"[scanner] Tick — {len(full_scan)} full scans, "
-          f"{len(count_woken)} count-woken, {len(skipped)} skipped")
+    print(f"[scanner] Tick — {len(full_scan)} full scans, {len(skipped)} skipped")
 
-    for search in full_scan + count_woken:
+    for search in full_scan:
         trigger_scan_for_search(search)
 
 def _run_all_alerts() -> None:
